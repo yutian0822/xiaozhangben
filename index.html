@@ -53,6 +53,8 @@
   .sub{font-size:13px;color:var(--dim)}
   .sub b{display:block;font-size:15px;color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
   .sub.warn b{color:var(--warn)} .sub.ok b{color:var(--ok)}
+  .sumall{display:flex;justify-content:space-between;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;color:var(--dim);flex-wrap:wrap}
+  .sumall b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
 
   .chips{display:flex;gap:8px;overflow:auto;padding:14px 0 4px;scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
@@ -162,7 +164,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-15 · 6</p>
+    <p class="hint" id="ver">版本 2026-11-15 · 7</p>
   </div>
 </div>
 
@@ -235,21 +237,27 @@
     var m=monthOf(S.offset);
     var arr=monthEntries().filter(function(e){return e.ledger===S.ledger});
     var total=arr.reduce(function(s,e){return s+e.amount},0);
+    var all=S.entries.filter(function(e){return e.ledger===S.ledger});
+    var allTotal=all.reduce(function(s,e){return s+e.amount},0);
     var el=$('#summary');
     if(S.ledger==='biz'){
       var wait=arr.filter(function(e){return (e.status||'待报')==='待报'}).reduce(function(s,e){return s+e.amount},0);
       var sent=arr.filter(function(e){return e.status==='已提交'}).reduce(function(s,e){return s+e.amount},0);
       var back=arr.filter(function(e){return e.status==='已到账'}).reduce(function(s,e){return s+e.amount},0);
+      var openAll=all.filter(function(e){return e.status!=='已到账'}).reduce(function(s,e){return s+e.amount},0);
       el.innerHTML='<div class="sub">本月垫付</div><div class="big">¥'+money(total)+'<small>'+arr.length+' 笔</small></div>'+
         '<div class="subs"><div class="sub warn">待报销<b>¥'+money(wait)+'</b></div>'+
         '<div class="sub">已提交<b>¥'+money(sent)+'</b></div>'+
-        '<div class="sub ok">已到账<b>¥'+money(back)+'</b></div></div>';
+        '<div class="sub ok">已到账<b>¥'+money(back)+'</b></div></div>'+
+        '<div class="sumall"><span>累计垫付 <b>¥'+money(allTotal)+'</b> · '+all.length+' 笔</span>'+
+        '<span>未结 <b>¥'+money(openAll)+'</b></span></div>';
     }else{
       var days=new Set(arr.map(function(e){return e.date})).size||1;
       var daysInMonth=new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
       el.innerHTML='<div class="sub">本月支出</div><div class="big">¥'+money(total)+'<small>'+arr.length+' 笔</small></div>'+
         '<div class="subs"><div class="sub">日均<b>¥'+money(total/daysInMonth)+'</b></div>'+
-        '<div class="sub">有支出天数<b>'+days+' 天</b></div></div>';
+        '<div class="sub">有支出天数<b>'+days+' 天</b></div></div>'+
+        '<div class="sumall"><span>累计支出 <b>¥'+money(allTotal)+'</b> · '+all.length+' 笔</span></div>';
     }
   }
 
