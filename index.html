@@ -252,7 +252,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-16 · 38</p>
+    <p class="hint" id="ver">版本 2026-11-16 · 39</p>
   </div>
 </div>
 
@@ -293,10 +293,10 @@
   'use strict';
   var KEY='xiaozhangben.v1';
   var CATS={
-    biz:['交通','餐饮','饮品','住宿','办公用品','招待','快递','会务','其他'],
-    me:['吃饭','饮品','交通','日用','娱乐','医疗','宠物','孩子','人情','房租水电','其他']
+    biz:['交通','餐饮','饮品','住宿','办公用品','超市','招待','快递','会务','其他'],
+    me:['吃饭','饮品','超市','交通','日用','娱乐','医疗','宠物','孩子','人情','房租水电','其他']
   };
-  var ICONS={'交通':'🚕','餐饮':'🍜','饮品':'☕','住宿':'🏨','办公用品':'📎','招待':'🍽','快递':'📦','会务':'🎤','其他':'•',
+  var ICONS={'交通':'🚕','餐饮':'🍜','饮品':'☕','超市':'🛒','住宿':'🏨','办公用品':'📎','招待':'🍽','快递':'📦','会务':'🎤','其他':'•',
     '吃饭':'🍚','日用':'🧴','娱乐':'🎬','医疗':'💊','宠物':'🐾','孩子':'🎒','人情':'🎁','房租水电':'🏠'};
   var S={ledger:'biz',offset:0,filter:'全部',entries:[],editId:null};
 
@@ -691,7 +691,8 @@
     if(has('餐','饭','美团','饿了么','面包','面馆','食'))return ledger==='biz'?'餐饮':'吃饭';
     if(has('打车','滴滴','出租','地铁','公交','高铁','动车','机票','机场','加油','停车','车费'))return '交通';
     if(has('酒店','住宿','民宿','宾馆'))return '住宿';
-    if(has('超市','便利','京东','淘宝','拼多多','淘宝','购物','日用品'))return ledger==='biz'?'办公用品':'日用';
+    if(has('超市','便利店','沃尔玛','永辉','盒马','大润发','华润','联华','罗森','全家','物美','生鲜','菜场','菜场','山姆','costco'))return '超市';
+    if(has('京东','淘宝','拼多多','购物','日用品','网购'))return ledger==='biz'?'办公用品':'日用';
     if(has('药店','医院','药'))return ledger==='biz'?'其他':'医疗';
     if(has('电影','游戏','娱乐','KTV'))return ledger==='biz'?'招待':'娱乐';
     if(has('快递','顺丰','邮'))return ledger==='biz'?'快递':'其他';
@@ -708,6 +709,11 @@
       '住房物业':['其他','房租水电'],'转账红包':['其他','人情'],'教育培训':['其他','孩子'],'充值缴费':['其他','房租水电']};
     for(var key in M){ if(k.indexOf(key)>=0) return ledger==='biz'?M[key][0]:M[key][1] }
     return '';
+  }
+  function 定分类(text,kind,lg){
+    var g=guessCat(text,lg);
+    if(g==='饮品'||g==='宠物'||g==='超市')return g;
+    return 分类映射(kind,lg)||g;
   }
   function parseBillMatrix(rows){
     /* 微信、支付宝、各家银行导出的表头写法都不一样，前头还常带几行说明。
@@ -915,8 +921,7 @@
     $('#billPreview').innerHTML=rows.map(function(r,k){
       var dup=r.lg==='dup';
       var tar=r.lg==='biz'?'biz':'me';
-      var gc=dup?'':guessCat((r.note||'')+(r.pay||''),tar);
-      var cat=dup?'':((gc==='饮品'||gc==='宠物')?gc:(分类映射(r.kind,tar)||gc));
+      var cat=dup?'':定分类((r.note||'')+(r.pay||''),r.kind,tar);
       var nm=r.date.slice(5)+' '+String(r.note||r.kind||'—').replace(/\s+/g,' ');
       var chip=dup
         ?'<span class="ct dup">已导入·'+(r.dup==='biz'?'对公':'个人')+'</span>'
@@ -947,7 +952,7 @@
       var lg=r.lg,text=(r.note||'')+(r.pay||'');
       S.entries.push({
         id:uid(),ledger:lg,amount:r.amount,date:r.date,
-        category:guessCat(text,lg)==='饮品'||guessCat(text,lg)==='宠物'?guessCat(text,lg):(分类映射(r.kind,lg)||guessCat(text,lg)),note:r.note,
+        category:定分类(text,r.kind,lg),note:r.note,
         project:'',invoice:'无',status:lg==='biz'?'待报':'',pay:r.pay,
         ext:r.ext,hash:r.hash,createdAt:Date.now()
       });
