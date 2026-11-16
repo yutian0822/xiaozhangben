@@ -67,6 +67,13 @@
   .seg{box-shadow:inset 0 1px 2px rgba(0,0,0,.18)}
   body[data-ledger="biz"] .seg button.on{color:var(--biz)}
   body[data-ledger="me"] .seg button.on{color:var(--me)}
+  .bseg{display:flex;gap:8px;margin-top:14px}
+  .bseg button{flex:1;padding:12px 6px;border-radius:12px;background:var(--bg3);font-size:14px;color:var(--dim)}
+  .bseg button.on{background:var(--bg2);color:var(--fg);box-shadow:inset 0 0 0 1.5px var(--accent)}
+  .imp-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:3px 0}
+  .imp-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .imp-row .ct{flex:none;font-size:11px;color:var(--dim);opacity:.8;border:1px solid var(--line);border-radius:6px;padding:0 5px}
+  .imp-row b{flex:none;color:var(--fg);font-weight:550}
 
   .card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-top:12px}
   #summary{position:relative;overflow:hidden;
@@ -237,9 +244,9 @@
     <div class="field"><label>音效</label><button id="sndBtn" style="flex:1;text-align:right;color:var(--me)">开</button></div>
     <div class="field"><label>清空</label><button id="wipe" style="flex:1;text-align:right;color:var(--bad)">删除全部记录</button></div>
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
-    <input type="file" id="billInput" accept=".csv,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
+    <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-16 · 35</p>
+    <p class="hint" id="ver">版本 2026-11-16 · 36</p>
   </div>
 </div>
 
@@ -247,11 +254,12 @@
   <div class="panel">
     <div class="phead"><button id="billCancel">取消</button><b>导入账单</b><span style="width:44px"></span></div>
     <p class="hint" id="billInfo"></p>
-    <div id="billPreview" style="max-height:36vh;overflow:auto;font-size:13px;line-height:1.7;color:var(--dim)"></div>
-    <div style="display:flex;gap:10px;margin-top:16px">
-      <button id="billBiz" style="flex:1;padding:13px;border-radius:12px;background:var(--bg3);font-size:14px">导入为对公垫付</button>
-      <button id="billMe" style="flex:1;padding:13px;border-radius:12px;background:var(--bg3);font-size:14px">导入为个人生活</button>
+    <div id="billPreview" style="max-height:30vh;overflow:auto;font-size:13px;line-height:1.7;color:var(--dim)"></div>
+    <div class="bseg" id="billSeg">
+      <button data-bill="biz" class="on">放进对公垫付</button>
+      <button data-bill="me">放进个人生活</button>
     </div>
+    <button id="billGo" style="width:100%;margin-top:12px;padding:14px;border-radius:12px;background:var(--accent);color:#12161d;font-size:15px;font-weight:650">导入</button>
   </div>
 </div>
 
@@ -294,8 +302,30 @@
   function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 
+  function 规范条目(e){
+    if(!e||typeof e!=='object')return null;
+    var lg=e.ledger==='biz'?'biz':'me';
+    var d=String(e.date==null?'':e.date).trim().slice(0,10).replace(/\//g,'-');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d))d=todayStr();
+    var amt=Math.abs(parseFloat(e.amount));
+    if(!isFinite(amt))amt=0;
+    return {
+      id:e.id||uid(),ledger:lg,amount:Math.round(amt*100)/100,date:d,
+      category:e.category||CATS[lg][0],note:String(e.note==null?'':e.note),
+      project:String(e.project==null?'':e.project),invoice:String(e.invoice==null?'':e.invoice),
+      status:lg==='biz'?(e.status==='已提交'||e.status==='已到账'?e.status:'待报'):'',
+      pay:String(e.pay==null?'':e.pay),ext:String(e.ext==null?'':e.ext),
+      hash:String(e.hash==null?'':e.hash),createdAt:+e.createdAt||0
+    };
+  }
   function load(){
-    try{var raw=localStorage.getItem(KEY);if(raw){var o=JSON.parse(raw);if(o&&Array.isArray(o.entries))S.entries=o.entries}}catch(e){}
+    var raw=null;
+    try{raw=localStorage.getItem(KEY)}catch(e){}
+    if(!raw)return;
+    var list=[];
+    try{var o=JSON.parse(raw);if(o&&Array.isArray(o.entries))list=o.entries}catch(e){return}
+    /* 兜底：老版本/导入的数据可能缺字段或类型不对，先补齐再渲染，免得一开就报错 */
+    S.entries=list.map(规范条目).filter(Boolean);
   }
   function save(){
     try{localStorage.setItem(KEY,JSON.stringify({v:1,entries:S.entries}))}catch(e){toast('保存失败：存储空间不够')}
@@ -316,20 +346,26 @@
     var ac=null, KEY='xiaozhangben.sound';
     /* 你给的录音：口袋里一把硬币碰撞，裁到 0.86 秒并归一化 */
     var COIN='AAAAHGZ0eXBNNEEgAAAAAE00QSBtcDQyaXNvbQAAA7Ztb292AAAAbG12aGQAAAAA5x+TU+cfk1MAAH0AAAB0AAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACSHRyYWsAAABcdGtoZAAAAAfnH5NT5x+TUwAAAAEAAAAAAAB0AAAAAAAAAAAAAAAAAAEAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAeRtZGlhAAAAIG1kaGQAAAAA5x+TU+cfk1MAAH0AAAB0AAAAAAAAAAAiaGRscgAAAAAAAAAAc291bgAAAAAAAAAAAAAAAAAAAAABmm1pbmYAAAAQc21oZAAAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAABXnN0YmwAAAB2c3RzZAAAAAAAAAABAAAAZm1wNGEAAAAAAAAAAQAAAAAAAAAAAAIAEAAAAAB9AAAAAAAAM2VzZHMAAAAAA4CAgCIAAAAEgICAFEAUABgAAACLGAAAfQAFgICAAhKIBoCAgAECAAAAD3NidGQAAAAASTE2AAAAGHN0dHMAAAAAAAAAAQAAAB0AAAQAAAAAKHN0c2MAAAAAAAAAAgAAAAEAAAAQAAAAAQAAAAIAAAANAAAAAQAAAIhzdHN6AAAAAAAAAAAAAAAdAAAABAAAAccAAAGtAAAAiwAAAKsAAACiAAAAlAAAAKEAAAChAAAApAAAAKcAAACeAAAAowAAAJsAAAB6AAAAegAAAIIAAAB/AAAAdAAAAIAAAACDAAAAfwAAAHcAAACXAAAAmAAAAIQAAACCAAAAfwAAAGMAAAAYc3RjbwAAAAAAAAACAAAQAAAAG0EAAAD6dWR0YQAAAPJtZXRhAAAAAAAAACJoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAAADEaWxzdAAAALwtLS0tAAAAHG1lYW4AAAAAY29tLmFwcGxlLmlUdW5lcwAAABRuYW1lAAAAAGlUdW5TTVBCAAAAhGRhdGEAAAABAAAAACAwMDAwMDAwMCAwMDAwMDg0MCAwMDAwMDA0MCAwMDAwMDAwMDAwMDA2QjgwIDAwMDAwMDAwIDAwMDAwMDAwIDAwMDAwMDAwIDAwMDAwMDAwIDAwMDAwMDAwIDAwMDAwMDAwIDAwMDAwMDAwIDAwMDAwMDAwAAAMJmZyZWUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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';
-    var coinBuf=null,coinBusy=false,coinWait=false;
+    var coinBuf=null,coinBusy=false,coinPending=0;
     function 放硬币(a){
-      if(!coinBuf)return;
-      var src=a.createBufferSource();src.buffer=coinBuf;
-      var g=a.createGain();g.gain.value=0.65;    /* 原声的 65%：10% + 10% + 15% */
-      src.connect(g);g.connect(a.destination);src.start();
+      if(!coinBuf)return false;
+      /* iOS 回前台/锁屏后 AudioContext 常常是 suspended，resume 是异步的：
+         等它真的 running 了再放，否则这一次就是静音播完。 */
+      if(a.state!=='running'){try{a.resume().then(function(){放硬币(a)}).catch(function(){})}catch(e){} return true}
+      try{
+        var src=a.createBufferSource();src.buffer=coinBuf;
+        var g=a.createGain();g.gain.value=0.65;    /* 原声的 65%：10% + 10% + 15% */
+        src.connect(g);g.connect(a.destination);src.start(a.currentTime+0.01);
+      }catch(e){return false}
+      return true;
     }
     function 装硬币(a){
-      if(coinBuf||coinBusy||!COIN)return;
+      if(!a||coinBuf||coinBusy||!COIN)return;
       coinBusy=true;
       try{
         var bin=atob(COIN),u8=new Uint8Array(bin.length);
         for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-        a.decodeAudioData(u8.buffer,function(b){coinBuf=b;coinBusy=false;if(coinWait){coinWait=false;放硬币(ac)}},function(){coinBusy=false});
+        a.decodeAudioData(u8.buffer,function(b){coinBuf=b;coinBusy=false;if(coinPending){coinPending=0;放硬币(ac)}},function(){coinBusy=false});
       }catch(e){coinBusy=false}
     }
     var on=(localStorage.getItem(KEY)||'1')==='1';
@@ -337,7 +373,7 @@
       if(!on)return null;
       try{
         if(!ac){var C=window.AudioContext||window.webkitAudioContext;if(!C)return null;ac=new C()}
-        if(ac.state==='suspended')ac.resume();
+        if(ac.state!=='running'){try{ac.resume()}catch(e){}}
         return ac;
       }catch(e){return null}
     }
@@ -358,12 +394,12 @@
         tone(a,2637.0,0.18,0.030,'sine',0.06);},
       paid:function(){
         var a=ctx();if(!a)return;
-        if(coinBuf){放硬币(a);return}
-        coinWait=true;装硬币(a);       /* 第一次还没解码完，解完自动补放 */
+        if(!放硬币(a)){coinPending=1;装硬币(a)}   /* 第一次还没解码完，解完自动补放 */
       },
       del:function(){var a=ctx();if(!a)return;
         tone(a,220,0.20,0.070,'triangle',0);
         tone(a,165,0.24,0.055,'triangle',0.05);},
+      unlock:function(){var a=ctx();if(a){装硬币(a);if(a.state!=='running'){try{a.resume()}catch(e){}}}},
       isOn:function(){return on},
       set:function(v){on=!!v;try{localStorage.setItem(KEY,on?'1':'0')}catch(e){}},
       toggle:function(){on=!on;try{localStorage.setItem(KEY,on?'1':'0')}catch(e){}return on}
@@ -372,7 +408,7 @@
 
   function toast(msg){var t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove('show')},1900)}
 
-  function monthEntries(){var m=monthOf(S.offset);return S.entries.filter(function(e){return e.date.slice(0,7)===m})}
+  function monthEntries(){var m=monthOf(S.offset);return S.entries.filter(function(e){return String(e.date||'').slice(0,7)===m})}
   function visible(){
     var arr=monthEntries().filter(function(e){return e.ledger===S.ledger});
     if(S.ledger==='biz'&&S.filter!=='全部')arr=arr.filter(function(e){return (e.status||'待报')===S.filter});
@@ -605,11 +641,11 @@
         if(!Array.isArray(list))throw new Error('格式不对');
         var have={};S.entries.forEach(function(e){have[e.id]=1});
         var add=0;
-        list.forEach(function(e){
-          if(!e||typeof e.amount!=='number'||!e.date)return;
+        list.forEach(function(raw){
+          var e=规范条目(raw);
+          if(!e)return;
           if(e.id&&have[e.id])return;
-          e.id=e.id||uid();e.ledger=e.ledger==='me'?'me':'biz';
-          S.entries.push(e);add++;
+          S.entries.push(e);have[e.id]=1;add++;
         });
         save();render();toast('导入了 '+add+' 笔');
       }catch(err){toast('导入失败：'+err.message)}
@@ -618,7 +654,8 @@
   }
 
   /* ---------- 账单导入（微信 / 支付宝 CSV） ---------- */
-  function splitCsv(line){
+  function splitCsv(line,d){
+    d=d||',';
     var out=[],cur='',q=false;
     for(var i=0;i<line.length;i++){
       var c=line[i];
@@ -627,7 +664,7 @@
         else cur+=c;
       }else{
         if(c==='"')q=true;
-        else if(c===','){out.push(cur);cur=''}
+        else if(c===d){out.push(cur);cur=''}
         else cur+=c;
       }
     }
@@ -652,62 +689,112 @@
     if(has('快递','顺丰','邮'))return ledger==='biz'?'快递':'其他';
     return '其他';
   }
+  function 净(s){
+    return String(s==null?'':s).replace(/^\uFEFF/,'').replace(/\u00a0|\u3000/g,' ')
+      .replace(/^[\s"'“”]+|[\s"'“”]+$/g,'').trim();
+  }
+  function 分类映射(kind,ledger){
+    var k=String(kind||'');
+    var M={'餐饮':['餐饮','吃饭'],'交通':['交通','交通'],'购物':['办公用品','日用'],'生活日用':['办公用品','日用'],
+      '休闲玩乐':['招待','娱乐'],'医疗保健':['其他','医疗'],'生活服务':['其他','其他'],'金融保险':['其他','其他'],
+      '住房物业':['其他','房租水电'],'转账红包':['其他','人情'],'教育培训':['其他','孩子'],'充值缴费':['其他','房租水电']};
+    for(var key in M){ if(k.indexOf(key)>=0) return ledger==='biz'?M[key][0]:M[key][1] }
+    return '';
+  }
   function parseBillMatrix(rows){
-    var hi=-1,headers=[];
-    for(var i=0;i<Math.min(rows.length,40);i++){
-      var j=(rows[i]||[]).join(',');
-      if(j.indexOf('金额')>=0&&(j.indexOf('交易时间')>=0||j.indexOf('交易创建时间')>=0||j.indexOf('付款时间')>=0)){
-        headers=rows[i].map(function(s){return String(s==null?'':s).replace(/^[\s"]+|[\s"]+$/g,'')});
-        hi=i;break;
+    /* 微信、支付宝、各家银行导出的表头写法都不一样，前头还常带几行说明。
+       不靠固定字眼，给每行打分，分最高、且同时有金额和时间的那行当表头。 */
+    var KEY=[['金额',4],['收/支',3],['收支',3],['交易时间',3],['付款时间',3],['创建时间',3],
+      ['时间',1],['日期',2],['交易对方',3],['对方',1],['商品',2],['说明',2],['支付方式',2],
+      ['付款方式',2],['订单号',2],['交易单号',2],['商户单号',2],['交易状态',1],['类型',1],['备注',1]];
+    function 打分(cells){
+      var j='|'+cells.join('|')+'|',sc=0,hasAmt=false,hasTime=false;
+      for(var i=0;i<KEY.length;i++){
+        if(j.indexOf(KEY[i][0])>=0){
+          sc+=KEY[i][1];
+          if(KEY[i][0]==='金额')hasAmt=true;
+          if(KEY[i][0]==='时间'||KEY[i][0]==='日期')hasTime=true;
+        }
       }
+      return {sc:sc,ok:hasAmt&&hasTime};
     }
-    if(hi<0)throw new Error('没认出表头，确认是微信/支付宝导出的账单');
-    var cDate=pick(headers,['交易创建时间','付款时间','交易时间']);
+    var hi=-1,best=0,headers=[];
+    for(var i=0;i<Math.min(rows.length,400);i++){
+      var cells=(rows[i]||[]).map(净);
+      if(cells.join('').length<4)continue;
+      var r=打分(cells);
+      if(r.ok&&r.sc>best){best=r.sc;hi=i;headers=cells}
+    }
+    if(hi<0)throw new Error('没认出表头：这份文件里找不到同时含「金额」和时间的那一行');
+    var cDate=pick(headers,['交易时间','付款时间','交易创建时间','创建时间','时间','日期']);
     var cAmt=pick(headers,['金额']);
-    var cDir=pick(headers,['收/支']);
-    var cParty=pick(headers,['交易对方']);
-    var cGoods=pick(headers,['商品名称','商品']);
-    var cPay=pick(headers,['支付方式','付款方式']);
-    var cId=pick(headers,['交易单号','交易号','商家订单号']);
-    var cType=pick(headers,['交易类型','类型']);
-    if(cAmt<0||cDate<0)throw new Error('表头里缺「金额」或「时间」列');
-    var head=headers.join(',');
-    var source=(head.indexOf('当前状态')>=0||head.indexOf('商户单号')>=0)?'微信':'支付宝';
+    var cDir=pick(headers,['收/支','收支']);
+    var cParty=pick(headers,['交易对方','对方','商户名称','商户']);
+    var cGoods=pick(headers,['商品说明','商品名称','商品','说明','摘要','用途']);
+    var cNote=pick(headers,['备注','摘要','用途']);
+    var cPay=pick(headers,['收/付款方式','支付方式','付款方式','付款','账户','付款账户']);
+    var cId=pick(headers,['交易订单号','交易单号','订单号','交易号']);
+    var cType=pick(headers,['交易分类','分类','交易类型','类型']);
+    if(cAmt<0||cDate<0)throw new Error('表头认出来了，但缺「金额」或时间那一列：'+headers.slice(0,6).join(' / '));
+    var head=headers.join('|');
+    var source=(head.indexOf('收/付款方式')>=0||head.indexOf('交易订单号')>=0)?'支付宝':((head.indexOf('当前状态')>=0||head.indexOf('商户单号')>=0)?'微信':'支付宝');
     function normPay(raw){
-      var s=String(raw||'').trim();
+      var s=净(raw);
       if(/微信|零钱|零钱通/.test(s))return '微信';
       if(/支付宝|余额宝|花呗/.test(s))return '支付宝';
       if(/银行|信用卡|储蓄卡|招商|工商|建设|农业|交通银行|中国银行|浦发|中信|民生|兴业|光大|平安/.test(s))return '银行卡';
       if(/现金/.test(s))return '现金';
       return source;
     }
+    function 日期(s){
+      var m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/.exec(净(s));
+      if(!m)return '';
+      return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+    }
     var out=[];
     for(var k=hi+1;k<rows.length;k++){
-      var f=(rows[k]||[]).map(function(x){return x==null?'':String(x)});
+      var f=(rows[k]||[]).map(净);
       if(!f.join('').trim())continue;
-      var dir=cDir>=0?(f[cDir]||'').trim():'';
+      var dir=cDir>=0?(f[cDir]||''):'';
       if(dir.indexOf('收入')>=0||dir.indexOf('不计')>=0)continue;
-      var raw=(f[cAmt]||'').replace(/[¥￥,\s元]/g,'');
-      var amt=Math.abs(parseFloat(raw));
-      var date=(f[cDate]||'').trim().slice(0,10);
-      if(!(amt>0)||!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
-      var goods=cGoods>=0?(f[cGoods]||'').trim():'';
-      var party=cParty>=0?(f[cParty]||'').trim():'';
-      var note=(goods||party||(cType>=0?f[cType]:'')||'').trim();
+      var rawCell=(f[cAmt]||'').replace(/[¥￥,\s元]/g,'');
+      if(!rawCell||!/^-?\d+(\.\d+)?$/.test(rawCell))continue;
+      var amt=Math.abs(parseFloat(rawCell));
+      var date=日期(f[cDate]);
+      if(!(amt>0)||!date)continue;
+      var goods=cGoods>=0?(f[cGoods]||''):'';
+      var party=cParty>=0?(f[cParty]||''):'';
+      var kind=cType>=0?(f[cType]||''):'';
+      var 备注=cNote>=0?(f[cNote]||''):'';
+      var note=(备注||goods||party||kind||'').trim();
       out.push({
         date:date,amount:Math.round(amt*100)/100,
-        note:note.slice(0,40),
+        note:note.slice(0,40),kind:kind,
         pay:normPay(cPay>=0?f[cPay]:''),
-        ext:cId>=0?(f[cId]||'').trim():'',
-        hash:date+'|'+amt+'|'+(goods||party).slice(0,16)
+        ext:cId>=0?(f[cId]||''):'',
+        hash:date+'|'+amt+'|'+(note||goods||party).slice(0,16)
       });
     }
     return out;
   }
+
   function parseBill(text){
     var lines=text.replace(/\r\n?/g,'\n').split('\n');
-    var rows=lines.map(splitCsv).filter(function(r){return r.join('').trim()!==''});
-    return parseBillMatrix(rows);
+    /* 支付宝的前几行说明文字里也有逗号分号，所以不能靠前几行猜分隔符：
+       三种都试一遍，谁解出来的支出记录多就用谁。 */
+    var seps=[',','\t',';'],best=null,headerSeen=false,firstErr=null;
+    for(var s=0;s<seps.length;s++){
+      var rows=lines.map(function(x){return splitCsv(x,seps[s])}).filter(function(r){return r.join('').trim()!==''});
+      try{
+        var out=parseBillMatrix(rows);
+        headerSeen=true;
+        if(!best||out.length>best.out.length)best={out:out};
+      }catch(e){ if(!firstErr)firstErr=e }
+    }
+    if(best&&best.out.length)return best.out;
+    if(!headerSeen&&firstErr)throw firstErr;
+    if(headerSeen)throw new Error('表头认出来了，但里面没有支出记录（可能全是收入或「不计收支」）');
+    throw new Error('没认出表头：这份文件里找不到同时含「金额」和时间的那一行');
   }
 
   /* ---------- 直接读 xlsx（zip + sheet xml） ---------- */
@@ -788,15 +875,24 @@
     if(!key)throw new Error('xlsx 里没找到工作表');
     return xlsxRows(new TextDecoder('utf-8').decode(zip[key]),shared);
   }
-  var billRows=[];
+  var billRows=[],billLedger='me';
   function showBillRows(rows){
     billRows=rows;
-    var total=rows.reduce(function(s,r){return s+r.amount},0);
-    $('#billInfo').textContent='认出 '+rows.length+' 笔支出，合计 ¥'+money(total)+'。选一本账放进去：';
-    $('#billPreview').innerHTML=rows.slice(0,12).map(function(r){
-      return '<div style="display:flex;justify-content:space-between;gap:10px"><span>'+esc(r.date.slice(5))+' '+esc(r.note||'—')+'</span><b style="color:var(--fg);font-weight:550">¥'+money(r.amount)+'</b></div>';
-    }).join('')+(rows.length>12?'<div style="margin-top:6px">…还有 '+(rows.length-12)+' 笔</div>':'');
+    billLedger=S.ledger;                     /* 默认放进你现在看的那本账 */
+    画账单预览();
     $('#billSheet').classList.add('show');
+  }
+  function 画账单预览(){
+    var rows=billRows;
+    var total=rows.reduce(function(s,r){return s+r.amount},0);
+    $('#billInfo').textContent='认出 '+rows.length+' 笔支出，合计 ¥'+money(total)+'。';
+    $('#billPreview').innerHTML=rows.slice(0,12).map(function(r){
+      var cat=分类映射(r.kind,billLedger)||guessCat((r.note||'')+(r.pay||''),billLedger);
+      var nm=r.date.slice(5)+' '+String(r.note||r.kind||'—').replace(/\s+/g,' ');
+      return '<div class="imp-row"><span class="nm">'+esc(nm)+'</span><span class="ct">'+esc(cat)+'</span><b>¥'+money(r.amount)+'</b></div>';
+    }).join('')+(rows.length>12?'<div style="margin-top:6px">…还有 '+(rows.length-12)+' 笔</div>':'');
+    $('#billGo').textContent='导入这 '+rows.length+' 笔';
+    document.querySelectorAll('#billSeg button').forEach(function(b){b.classList.toggle('on',b.dataset.bill===billLedger)});
   }
   function commitBill(ledger){
     if(!billRows.length)return;
@@ -808,7 +904,7 @@
       var text=r.note;
       S.entries.push({
         id:uid(),ledger:ledger,amount:r.amount,date:r.date,
-        category:guessCat(text+(r.pay||''),ledger),note:r.note,
+        category:分类映射(r.kind,ledger)||guessCat(text+(r.pay||''),ledger),note:r.note,
         project:'',invoice:'无',status:ledger==='biz'?'待报':'',pay:r.pay,
         ext:r.ext,hash:r.hash,createdAt:Date.now()
       });
@@ -833,9 +929,13 @@
         var isZip=u8.length>2&&u8[0]===0x50&&u8[1]===0x4b;
         var rows;
         if(isZip){
-          showToastWait('正在读 xlsx…');
-          var matrix=await xlsxToRows(buf);
-          rows=parseBillMatrix(matrix);
+          showToastWait('正在读文件…');
+          /* 支付宝网页版导出的是压缩包，里面装着一个 csv */
+          var zip=null;
+          try{ zip=await unzipWanted(buf,function(n){return /.csv$/i.test(n)||n==='xl/sharedStrings.xml'||/^xl\/worksheets\/sheet\d*\.xml$/.test(n)}) }catch(e){}
+          var csvKey=zip?Object.keys(zip).filter(function(n){return /\.csv$/i.test(n)})[0]:'';
+          if(csvKey){ rows=parseBill(decodeBytes(zip[csvKey])) }
+          else { var matrix=await xlsxToRows(buf); rows=parseBillMatrix(matrix) }
         }else{
           rows=parseBill(decodeBytes(u8));
         }
@@ -927,8 +1027,12 @@
   $('#impBill').onclick=function(){$('#billInput').click()};
   $('#billInput').onchange=function(){if(this.files&&this.files[0])readBill(this.files[0]);this.value=''};
   $('#billCancel').onclick=function(){$('#billSheet').classList.remove('show')};
-  $('#billBiz').onclick=function(){commitBill('biz')};
-  $('#billMe').onclick=function(){commitBill('me')};
+  $('#billSeg').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    billLedger=b.dataset.bill;
+    画账单预览();
+  });
+  $('#billGo').onclick=function(){commitBill(billLedger)};
   $('#askYes').onclick=function(){var cb=askCb;askClose();if(cb)cb()};
   $('#askNo').onclick=askClose;
   $('#askSheet').addEventListener('click',function(e){if(e.target===$('#askSheet'))askClose()});
@@ -938,7 +1042,12 @@
     var it=e.target.closest('[data-pick]');if(it)applyPick(it.dataset.pick);
   });
 
-  window.addEventListener('pointerdown',function(){var a=ctx();if(a)装硬币(a)},{once:true});
+  window.addEventListener('pointerdown',function(){Snd.unlock()},{once:true});
+
+  /* 回前台/解锁后把声音解开：不解的话下一次点保存、到账都是哑的 */
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible')Snd.unlock();
+  });
 
   window.addEventListener('error',function(e){
     try{toast('脚本出错：'+((e&&(e.message||e.error&&e.error.message))||'未知错误'))}catch(_e){}
