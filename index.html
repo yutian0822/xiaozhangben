@@ -153,6 +153,11 @@
   .danger{width:100%;margin-top:16px;padding:13px;border-radius:12px;background:rgba(255,93,93,.12);color:var(--bad);font-size:15px;font-weight:550}
   .hint{font-size:12.5px;color:var(--dim2);margin-top:10px;line-height:1.7}
 
+  .bar{height:6px;border-radius:4px;background:var(--bg3);overflow:hidden;margin:12px 2px 6px}
+  .bar i{display:block;height:100%;border-radius:4px;background:var(--accent);transition:width .3s}
+  .bar.over i{background:var(--bad)}
+  .barTxt{font-size:12px;color:var(--dim);display:flex;justify-content:space-between;margin:0 2px}
+  .barTxt b{color:var(--fg);font-weight:550}
   .nudge{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 88px);z-index:40;
     display:none;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;
     background:linear-gradient(180deg,var(--bg3),var(--bg2));border:1px solid var(--line);
@@ -256,6 +261,8 @@
     <div class="field"><label>完整备份</label><button id="expJson" style="flex:1;text-align:right;color:var(--me)">导出 JSON</button></div>
     <div class="field"><label>恢复</label><button id="impJson" style="flex:1;text-align:right;color:var(--me)">导入 JSON</button></div>
     <div class="field"><label>音效</label><button id="sndBtn" style="flex:1;text-align:right;color:var(--me)">开</button></div>
+    <div class="field"><label>每月预算</label><input id="bgLimit" type="number" inputmode="decimal" placeholder="不限" style="flex:1;text-align:right;background:none;border:0;color:var(--fg);font-size:15px;width:50%"></div>
+    <div class="field"><label>预算提醒</label><span style="flex:1;text-align:right;color:var(--dim);font-size:15px">花到 <input id="bgPct" type="number" inputmode="numeric" min="1" max="100" value="80" style="width:52px;text-align:right;background:none;border:0;color:var(--fg);font-size:15px"> % 时提醒</span></div>
     <div class="field"><label>每日提醒</label><button id="rmBtn" style="flex:1;text-align:right;color:var(--me)">开</button></div>
     <div class="field"><label>提醒时间</label><input id="rmTime" type="time" value="21:00" style="flex:1;text-align:right;background:none;border:0;color:var(--fg);font-size:15px"></div>
     <div class="field"><label>系统通知</label><button id="notifyBtn" style="flex:1;text-align:right;color:var(--me)">开启</button></div>
@@ -264,7 +271,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-16 · 44</p>
+    <p class="hint" id="ver">版本 2026-11-16 · 45</p>
   </div>
 </div>
 
@@ -349,6 +356,7 @@
   }
   function save(){
     try{localStorage.setItem(KEY,JSON.stringify({v:1,entries:S.entries}))}catch(e){toast('保存失败：存储空间不够')}
+    try{查预算()}catch(e){}
   }
   /* ── 自绘确认框：iOS 独立模式和部分内置浏览器会吞掉 window.confirm ── */
   var askCb=null;
@@ -425,6 +433,31 @@
       toggle:function(){on=!on;try{localStorage.setItem(KEY,on?'1':'0')}catch(e){}return on}
     };
   })();
+
+  /* ── 每月预算（只作用于个人生活） ── */
+  var BGK='xiaozhangben.budget';
+  function 读预算(){
+    try{ var v=JSON.parse(localStorage.getItem(BGK)||'null');
+      if(v&&typeof v==='object') return {limit:+v.limit||0, pct:+v.pct||80, warned:v.warned||''};
+    }catch(e){}
+    return {limit:0,pct:80,warned:''};
+  }
+  function 存预算(v){ try{ localStorage.setItem(BGK,JSON.stringify(v)) }catch(e){} }
+  function 本月个人支出(){
+    var m=monthOf(0);
+    return S.entries.filter(function(e){return e.ledger==='me'&&String(e.date||'').slice(0,7)===m})
+      .reduce(function(s,e){return s+e.amount},0);
+  }
+  function 查预算(){
+    var b=读预算();
+    if(b.limit<=0)return;
+    var used=本月个人支出(), p=used/b.limit*100, key=monthOf(0)+'|'+b.pct;
+    if(p<b.pct||b.warned===key)return;
+    b.warned=key;存预算(b);
+    if(used>b.limit) toast('这个月预算超了 ¥'+money(used-b.limit));
+    else if(p>=100) toast('这个月预算用完了');
+    else toast('这个月花到 '+Math.round(p)+'%，还剩 ¥'+money(b.limit-used));
+  }
 
   /* ── 每日提醒 ── */
   var RM='xiaozhangben.remind';
@@ -514,6 +547,15 @@
     renderSummary();renderChips();renderList();
   }
 
+  function budgetHtml(total){
+    var b=读预算();
+    if(b.limit<=0)return '';
+    var p=total/b.limit*100;
+    var over=total>b.limit;
+    return '<div class="bar'+(over?' over':'')+'"><i style="width:'+Math.min(100,p)+'%"></i></div>'+
+      '<div class="barTxt"><span>预算 ¥'+money(b.limit)+'</span>'+
+      '<span>已用 <b>'+Math.round(p)+'%</b> · '+(over?'超 ¥'+money(total-b.limit):'剩 ¥'+money(b.limit-total))+'</span></div>';
+  }
   function renderSummary(){
     var m=monthOf(S.offset);
     var arr=monthEntries().filter(function(e){return e.ledger===S.ledger});
@@ -540,6 +582,7 @@
       el.innerHTML='<div class="sub">本月支出</div><div class="big">¥'+money(total)+'<small>'+arr.length+' 笔</small></div>'+
         '<div class="subs"><div class="sub">日均<b>¥'+money(total/daysInMonth)+'</b></div>'+
         '<div class="sub">有支出天数<b>'+days+' 天</b></div></div>'+
+        budgetHtml(total)+
         '<div class="sumall"><span>累计支出 <b>¥'+money(allTotal)+'</b> · '+all.length+' 笔</span></div>';
     }
   }
@@ -1166,6 +1209,24 @@
   paintSnd();
   $('#sndBtn').onclick=function(){Snd.toggle();paintSnd();if(Snd.isOn())Snd.save();};
   $('#setSheet').addEventListener('click',function(e){if(e.target===$('#setSheet'))$('#setSheet').classList.remove('show')});
+  function paintBudget(){
+    var b=读预算();
+    var l=$('#bgLimit'); if(l)l.value=b.limit?String(b.limit):'';
+    var p=$('#bgPct'); if(p)p.value=String(b.pct||80);
+  }
+  paintBudget();
+  $('#bgLimit').onchange=function(){
+    var b=读预算();
+    var v=parseFloat(this.value);
+    b.limit=(isFinite(v)&&v>0)?Math.round(v*100)/100:0;
+    b.warned='';存预算(b);paintBudget();render();
+  };
+  $('#bgPct').onchange=function(){
+    var b=读预算();
+    var v=parseInt(this.value,10);
+    b.pct=(isFinite(v)&&v>=1&&v<=100)?v:80;
+    b.warned='';存预算(b);paintBudget();render();
+  };
   rmPaint();
   $('#rmBtn').onclick=function(){var r=rmLoad();r.on=!r.on;r.day='';rmSave(r);rmPaint();toast(r.on?'每天到点提醒你记账':'提醒已关')};
   $('#rmTime').onchange=function(){

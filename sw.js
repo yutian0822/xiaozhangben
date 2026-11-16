@@ -1,5 +1,5 @@
 /* 小账本 service worker —— 让 App 离线能开，不缓存任何账目数据 */
-const CACHE = 'xiaozhangben-v44';
+const CACHE = 'xiaozhangben-v45';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './pet.webp', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
