@@ -74,6 +74,12 @@
   .imp-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .imp-row .ct{flex:none;font-size:11px;color:var(--dim);opacity:.8;border:1px solid var(--line);border-radius:6px;padding:0 5px}
   .imp-row b{flex:none;color:var(--fg);font-weight:550}
+  .imp-row{cursor:pointer}
+  .imp-row.dupdeco{opacity:.42}
+  .imp-row.skipped .nm{text-decoration:line-through;opacity:.5}
+  .ct.dup,.ct.skip{color:var(--dim);border-color:var(--line)}
+  .ct.lg.biz{color:var(--biz);border-color:rgba(240,180,41,.5)}
+  .ct.lg.me{color:var(--me);border-color:rgba(78,168,255,.5)}
 
   .card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-top:12px}
   #summary{position:relative;overflow:hidden;
@@ -246,7 +252,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-16 · 36</p>
+    <p class="hint" id="ver">版本 2026-11-16 · 37</p>
   </div>
 </div>
 
@@ -256,8 +262,8 @@
     <p class="hint" id="billInfo"></p>
     <div id="billPreview" style="max-height:30vh;overflow:auto;font-size:13px;line-height:1.7;color:var(--dim)"></div>
     <div class="bseg" id="billSeg">
-      <button data-bill="biz" class="on">放进对公垫付</button>
-      <button data-bill="me">放进个人生活</button>
+      <button data-bill="biz" class="on">全部设为对公</button>
+      <button data-bill="me">全部设为个人</button>
     </div>
     <button id="billGo" style="width:100%;margin-top:12px;padding:14px;border-radius:12px;background:var(--accent);color:#12161d;font-size:15px;font-weight:650">导入</button>
   </div>
@@ -876,43 +882,79 @@
     return xlsxRows(new TextDecoder('utf-8').decode(zip[key]),shared);
   }
   var billRows=[],billLedger='me';
+  function 去重索引(){
+    var idx={};
+    S.entries.forEach(function(e){
+      var k=e.ledger==='biz'?'biz':'me';
+      if(e.ext)idx['x'+e.ext]=k;
+      if(e.hash)idx['h'+e.hash]=k;
+    });
+    return idx;
+  }
   function showBillRows(rows){
-    billRows=rows;
-    billLedger=S.ledger;                     /* 默认放进你现在看的那本账 */
+    var idx=去重索引();
+    billRows=rows.map(function(r){
+      var dup=(r.ext&&idx['x'+r.ext])||idx['h'+r.hash]||'';
+      return {date:r.date,amount:r.amount,note:r.note,kind:r.kind,pay:r.pay,ext:r.ext,hash:r.hash,dup:dup,lg:dup?'dup':S.ledger};
+    });
+    billLedger=S.ledger;   /* 默认放进你现在看的那本账 */
     画账单预览();
     $('#billSheet').classList.add('show');
   }
+  function 待导入(){return billRows.filter(function(r){return r.lg==='biz'||r.lg==='me'})}
   function 画账单预览(){
     var rows=billRows;
-    var total=rows.reduce(function(s,r){return s+r.amount},0);
-    $('#billInfo').textContent='认出 '+rows.length+' 笔支出，合计 ¥'+money(total)+'。';
-    $('#billPreview').innerHTML=rows.slice(0,12).map(function(r){
-      var cat=分类映射(r.kind,billLedger)||guessCat((r.note||'')+(r.pay||''),billLedger);
+    var all=rows.reduce(function(s,r){return s+r.amount},0);
+    var dupN=rows.filter(function(r){return r.lg==='dup'}).length;
+    var n=待导入().length;
+    $('#billInfo').textContent='认出 '+rows.length+' 笔支出，合计 ¥'+money(all)+'。'
+      +(dupN?'其中 '+dupN+' 笔已经在账本里，自动跳过。':'')
+      +'点某一笔可以改放：对公 → 个人 → 跳过。';
+    $('#billPreview').innerHTML=rows.map(function(r,k){
+      var dup=r.lg==='dup';
+      var tar=r.lg==='biz'?'biz':'me';
+      var cat=dup?'':(分类映射(r.kind,tar)||guessCat((r.note||'')+(r.pay||''),tar));
       var nm=r.date.slice(5)+' '+String(r.note||r.kind||'—').replace(/\s+/g,' ');
-      return '<div class="imp-row"><span class="nm">'+esc(nm)+'</span><span class="ct">'+esc(cat)+'</span><b>¥'+money(r.amount)+'</b></div>';
-    }).join('')+(rows.length>12?'<div style="margin-top:6px">…还有 '+(rows.length-12)+' 笔</div>':'');
-    $('#billGo').textContent='导入这 '+rows.length+' 笔';
+      var chip=dup
+        ?'<span class="ct dup">已导入·'+(r.dup==='biz'?'对公':'个人')+'</span>'
+        :(r.lg==='skip'?'<span class="ct skip">跳过</span>':'<span class="ct lg '+r.lg+'">'+(r.lg==='biz'?'对公':'个人')+'</span>');
+      return '<div class="imp-row'+(dup?' dupdeco':'')+(r.lg==='skip'?' skipped':'')+'" data-i="'+k+'">'
+        +'<span class="nm">'+esc(nm)+'</span>'
+        +(cat?'<span class="ct">'+esc(cat)+'</span>':'')+chip
+        +'<b>¥'+money(r.amount)+'</b></div>';
+    }).join('');
+    $('#billGo').textContent=n?('导入这 '+n+' 笔'):'没有可导入的';
+    $('#billGo').disabled=!n;
     document.querySelectorAll('#billSeg button').forEach(function(b){b.classList.toggle('on',b.dataset.bill===billLedger)});
   }
-  function commitBill(ledger){
-    if(!billRows.length)return;
+  function 轮换笔(k){
+    var r=billRows[k];
+    if(!r||r.lg==='dup')return;
+    r.lg=r.lg==='me'?'biz':(r.lg==='biz'?'skip':'me');
+    画账单预览();
+  }
+  function commitBill(){
+    var todo=待导入();
+    if(!todo.length){toast('没有可导入的');return}
     var seen={};
     S.entries.forEach(function(e){ if(e.ext)seen['x'+e.ext]=1; seen['h'+e.hash]=1 });
-    var add=0,skip=0;
-    billRows.forEach(function(r){
+    var nBiz=0,nMe=0,skip=0;
+    todo.forEach(function(r){
       if((r.ext&&seen['x'+r.ext])||seen['h'+r.hash]){skip++;return}
-      var text=r.note;
+      var lg=r.lg,text=(r.note||'')+(r.pay||'');
       S.entries.push({
-        id:uid(),ledger:ledger,amount:r.amount,date:r.date,
-        category:分类映射(r.kind,ledger)||guessCat(text+(r.pay||''),ledger),note:r.note,
-        project:'',invoice:'无',status:ledger==='biz'?'待报':'',pay:r.pay,
+        id:uid(),ledger:lg,amount:r.amount,date:r.date,
+        category:分类映射(r.kind,lg)||guessCat(text,lg),note:r.note,
+        project:'',invoice:'无',status:lg==='biz'?'待报':'',pay:r.pay,
         ext:r.ext,hash:r.hash,createdAt:Date.now()
       });
-      add++;seen['h'+r.hash]=1;if(r.ext)seen['x'+r.ext]=1;
+      if(lg==='biz')nBiz++;else nMe++;
+      seen['h'+r.hash]=1;if(r.ext)seen['x'+r.ext]=1;
     });
     save();$('#billSheet').classList.remove('show');
-    S.ledger=ledger;S.filter='全部';S.offset=0;render();
-    toast('导入 '+add+' 笔'+(skip?'，跳过重复 '+skip+' 笔':''));
+    S.ledger=nMe>nBiz?'me':'biz';S.filter='全部';S.offset=0;render();
+    var parts=[];if(nBiz)parts.push('对公 '+nBiz);if(nMe)parts.push('个人 '+nMe);
+    toast('导入 '+(nBiz+nMe)+' 笔'+(parts.length?'（'+parts.join('，')+'）':'')+(skip?'，跳过 '+skip+' 笔':''));
   }
   function decodeBytes(buf){
     try{ return new TextDecoder('utf-8',{fatal:true}).decode(buf) }
@@ -1030,9 +1072,14 @@
   $('#billSeg').addEventListener('click',function(e){
     var b=e.target.closest('button');if(!b)return;
     billLedger=b.dataset.bill;
+    billRows.forEach(function(r){if(r.lg!=='dup')r.lg=billLedger});
     画账单预览();
   });
-  $('#billGo').onclick=function(){commitBill(billLedger)};
+  $('#billPreview').addEventListener('click',function(e){
+    var row=e.target.closest('.imp-row');if(!row)return;
+    轮换笔(+row.dataset.i);
+  });
+  $('#billGo').onclick=function(){commitBill()};
   $('#askYes').onclick=function(){var cb=askCb;askClose();if(cb)cb()};
   $('#askNo').onclick=askClose;
   $('#askSheet').addEventListener('click',function(e){if(e.target===$('#askSheet'))askClose()});
