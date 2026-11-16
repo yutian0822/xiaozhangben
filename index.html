@@ -252,7 +252,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-16 · 37</p>
+    <p class="hint" id="ver">版本 2026-11-16 · 38</p>
   </div>
 </div>
 
@@ -293,11 +293,11 @@
   'use strict';
   var KEY='xiaozhangben.v1';
   var CATS={
-    biz:['交通','餐饮','住宿','办公用品','招待','快递','会务','其他'],
-    me:['吃饭','交通','日用','娱乐','医疗','孩子','人情','房租水电','其他']
+    biz:['交通','餐饮','饮品','住宿','办公用品','招待','快递','会务','其他'],
+    me:['吃饭','饮品','交通','日用','娱乐','医疗','宠物','孩子','人情','房租水电','其他']
   };
-  var ICONS={'交通':'🚕','餐饮':'🍜','住宿':'🏨','办公用品':'📎','招待':'🍽','快递':'📦','会务':'🎤','其他':'•',
-    '吃饭':'🍚','日用':'🧴','娱乐':'🎬','医疗':'💊','孩子':'🎒','人情':'🎁','房租水电':'🏠'};
+  var ICONS={'交通':'🚕','餐饮':'🍜','饮品':'☕','住宿':'🏨','办公用品':'📎','招待':'🍽','快递':'📦','会务':'🎤','其他':'•',
+    '吃饭':'🍚','日用':'🧴','娱乐':'🎬','医疗':'💊','宠物':'🐾','孩子':'🎒','人情':'🎁','房租水电':'🏠'};
   var S={ledger:'biz',offset:0,filter:'全部',entries:[],editId:null};
 
   function $(s){return document.querySelector(s)}
@@ -686,7 +686,9 @@
   function guessCat(text,ledger){
     var t=text||'',biz=CATS.biz,me=CATS.me;
     function has(){for(var i=0;i<arguments.length;i++){if(t.indexOf(arguments[i])>=0)return true}return false}
-    if(has('餐','饭','美团','饿了么','咖啡','奶茶','拿铁','星巴克','面包','面馆','食'))return ledger==='biz'?'餐饮':'吃饭';
+    if(has('咖啡','奶茶','拿铁','星巴克','瑞幸','喜茶','霸王茶姬','茶百道','蜜雪','柠檬茶','果茶','奶盖','气泡水','酒','清吧','茶馆','饮品'))return '饮品';
+    if(has('猫粮','狗粮','宠物','猫砂','驱虫','绝育','兽医','宠物医院','寄养'))return ledger==='biz'?'其他':'宠物';
+    if(has('餐','饭','美团','饿了么','面包','面馆','食'))return ledger==='biz'?'餐饮':'吃饭';
     if(has('打车','滴滴','出租','地铁','公交','高铁','动车','机票','机场','加油','停车','车费'))return '交通';
     if(has('酒店','住宿','民宿','宾馆'))return '住宿';
     if(has('超市','便利','京东','淘宝','拼多多','淘宝','购物','日用品'))return ledger==='biz'?'办公用品':'日用';
@@ -913,7 +915,8 @@
     $('#billPreview').innerHTML=rows.map(function(r,k){
       var dup=r.lg==='dup';
       var tar=r.lg==='biz'?'biz':'me';
-      var cat=dup?'':(分类映射(r.kind,tar)||guessCat((r.note||'')+(r.pay||''),tar));
+      var gc=dup?'':guessCat((r.note||'')+(r.pay||''),tar);
+      var cat=dup?'':((gc==='饮品'||gc==='宠物')?gc:(分类映射(r.kind,tar)||gc));
       var nm=r.date.slice(5)+' '+String(r.note||r.kind||'—').replace(/\s+/g,' ');
       var chip=dup
         ?'<span class="ct dup">已导入·'+(r.dup==='biz'?'对公':'个人')+'</span>'
@@ -944,7 +947,7 @@
       var lg=r.lg,text=(r.note||'')+(r.pay||'');
       S.entries.push({
         id:uid(),ledger:lg,amount:r.amount,date:r.date,
-        category:分类映射(r.kind,lg)||guessCat(text,lg),note:r.note,
+        category:guessCat(text,lg)==='饮品'||guessCat(text,lg)==='宠物'?guessCat(text,lg):(分类映射(r.kind,lg)||guessCat(text,lg)),note:r.note,
         project:'',invoice:'无',status:lg==='biz'?'待报':'',pay:r.pay,
         ext:r.ext,hash:r.hash,createdAt:Date.now()
       });
