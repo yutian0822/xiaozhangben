@@ -264,7 +264,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-16 · 43</p>
+    <p class="hint" id="ver">版本 2026-11-16 · 44</p>
   </div>
 </div>
 
@@ -522,16 +522,18 @@
     var allTotal=all.reduce(function(s,e){return s+e.amount},0);
     var el=$('#summary');
     if(S.ledger==='biz'){
-      var wait=arr.filter(function(e){return (e.status||'待报')==='待报'}).reduce(function(s,e){return s+e.amount},0);
-      var sent=arr.filter(function(e){return e.status==='已提交'}).reduce(function(s,e){return s+e.amount},0);
-      var back=arr.filter(function(e){return e.status==='已到账'}).reduce(function(s,e){return s+e.amount},0);
-      var openAll=all.filter(function(e){return e.status!=='已到账'}).reduce(function(s,e){return s+e.amount},0);
-      el.innerHTML='<div class="sub">本月垫付</div><div class="big">¥'+money(total)+'<small>'+arr.length+' 笔</small></div>'+
-        '<div class="subs"><div class="sub warn">待报销<b>¥'+money(wait)+'</b></div>'+
-        '<div class="sub">已提交<b>¥'+money(sent)+'</b></div>'+
-        '<div class="sub ok">已到账<b>¥'+money(back)+'</b></div></div>'+
+      var sumOf=function(list){return list.reduce(function(s,e){return s+e.amount},0)};
+      var waitAll=all.filter(function(e){return (e.status||'待报')==='待报'});
+      var sentAll=all.filter(function(e){return e.status==='已提交'});
+      var backAll=all.filter(function(e){return e.status==='已到账'});
+      var openAll=waitAll.concat(sentAll);            /* 还没到账的部分 = 待核销 */
+      /* 核销可能按季度走，所以主数字用「全部未到账」，月度只当参考放在底下 */
+      el.innerHTML='<div class="sub">待核销</div><div class="big">¥'+money(sumOf(openAll))+'<small>'+openAll.length+' 笔</small></div>'+
+        '<div class="subs"><div class="sub warn">待报销<b>¥'+money(sumOf(waitAll))+'</b></div>'+
+        '<div class="sub">已提交<b>¥'+money(sumOf(sentAll))+'</b></div>'+
+        '<div class="sub ok">已到账<b>¥'+money(sumOf(backAll))+'</b></div></div>'+
         '<div class="sumall"><span>累计垫付 <b>¥'+money(allTotal)+'</b> · '+all.length+' 笔</span>'+
-        '<span>未结 <b>¥'+money(openAll)+'</b></span></div>';
+        '<span>本月 <b>¥'+money(total)+'</b> · '+arr.length+' 笔</span></div>';
     }else{
       var days=new Set(arr.map(function(e){return e.date})).size||1;
       var daysInMonth=new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
