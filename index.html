@@ -153,6 +153,14 @@
   .danger{width:100%;margin-top:16px;padding:13px;border-radius:12px;background:rgba(255,93,93,.12);color:var(--bad);font-size:15px;font-weight:550}
   .hint{font-size:12.5px;color:var(--dim2);margin-top:10px;line-height:1.7}
 
+  .nudge{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 8px);z-index:40;
+    display:none;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;
+    background:linear-gradient(180deg,var(--bg3),var(--bg2));border:1px solid var(--line);
+    box-shadow:0 10px 28px rgba(0,0,0,.45);font-size:13px;color:var(--fg)}
+  .nudge.show{display:flex}
+  .nudge span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nudge button{background:none;border:0;color:var(--accent);font-size:13px;padding:2px 4px}
+  .nudge #nudgeX{color:var(--dim);font-size:17px;line-height:1}
   .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translate(-50%,10px);
     background:var(--bg3);color:var(--fg);padding:10px 16px;border-radius:12px;font-size:13.5px;opacity:0;
     transition:.2s;pointer-events:none;z-index:50;border:1px solid var(--line)}
@@ -248,11 +256,15 @@
     <div class="field"><label>完整备份</label><button id="expJson" style="flex:1;text-align:right;color:var(--me)">导出 JSON</button></div>
     <div class="field"><label>恢复</label><button id="impJson" style="flex:1;text-align:right;color:var(--me)">导入 JSON</button></div>
     <div class="field"><label>音效</label><button id="sndBtn" style="flex:1;text-align:right;color:var(--me)">开</button></div>
+    <div class="field"><label>每日提醒</label><button id="rmBtn" style="flex:1;text-align:right;color:var(--me)">开</button></div>
+    <div class="field"><label>提醒时间</label><input id="rmTime" type="time" value="21:00" style="flex:1;text-align:right;background:none;border:0;color:var(--fg);font-size:15px"></div>
+    <div class="field"><label>系统通知</label><button id="notifyBtn" style="flex:1;text-align:right;color:var(--me)">开启</button></div>
+    <div class="field"><label>日历提醒</label><button id="icsBtn" style="flex:1;text-align:right;color:var(--me)">导出 .ics</button></div>
     <div class="field"><label>清空</label><button id="wipe" style="flex:1;text-align:right;color:var(--bad)">删除全部记录</button></div>
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-16 · 41</p>
+    <p class="hint" id="ver">版本 2026-11-16 · 42</p>
   </div>
 </div>
 
@@ -285,6 +297,8 @@
     <div id="pickList" style="max-height:60vh;overflow:auto;padding-top:6px"></div>
   </div>
 </div>
+
+<div class="nudge" id="nudge"><span id="nudgeTxt">今天还没记账</span><button id="nudgeGo">去记一笔</button><button id="nudgeX" aria-label="关闭">×</button></div>
 
 <div class="toast" id="toast"></div>
 
@@ -412,6 +426,75 @@
     };
   })();
 
+  /* ── 每日提醒 ── */
+  var RM='xiaozhangben.remind';
+  function rmLoad(){
+    try{ var v=JSON.parse(localStorage.getItem(RM)||'null'); if(v&&typeof v==='object')
+      return {on:v.on!==false, h:typeof v.h==='number'?v.h:21, m:typeof v.m==='number'?v.m:0, day:v.day||''};
+    }catch(e){}
+    return {on:true,h:21,m:0,day:''};
+  }
+  function rmSave(v){ try{ localStorage.setItem(RM,JSON.stringify(v)) }catch(e){} }
+  function rmPaint(){
+    var r=rmLoad();
+    var b=$('#rmBtn'); if(b){ b.textContent=r.on?'开':'关'; b.style.color=r.on?'var(--me)':'var(--dim)' }
+    var t=$('#rmTime'); if(t) t.value=('0'+r.h).slice(-2)+':'+('0'+r.m).slice(-2);
+    var nb=$('#notifyBtn');
+    if(nb){
+      var p=(typeof Notification!=='undefined')?Notification.permission:'none';
+      nb.textContent=p==='granted'?'已开':(p==='denied'?'被拒':'开启');
+      nb.style.color=p==='granted'?'var(--ok)':'var(--me)';
+    }
+  }
+  function 今天记过没(){
+    var t=todayStr();
+    return S.entries.some(function(e){ return e.date===t });
+  }
+  function rmNotify(){
+    if(typeof Notification==='undefined')return;
+    if(Notification.permission!=='granted')return;
+    try{
+      if(navigator.serviceWorker&&navigator.serviceWorker.ready){
+        navigator.serviceWorker.ready.then(function(reg){
+          reg.showNotification('今天还没记账',{body:'记一笔，别攒到月底', icon:'icons/icon-192.png', tag:'xiaozhangben-daily'});
+        });
+      }
+    }catch(e){}
+  }
+  function rmCheck(){
+    var r=rmLoad();
+    if(!r.on)return;
+    if($('#nudge').classList.contains('show'))return;
+    if(今天记过没())return;
+    if(r.day===todayStr())return;                 /* 今天已经提醒过 */
+    var d=new Date();
+    if(d.getHours()*60+d.getMinutes() < r.h*60+r.m)return;
+    $('#nudge').classList.add('show');
+    rmSave({on:r.on,h:r.h,m:r.m,day:todayStr()});
+    rmNotify();
+  }
+  function rmIcs(){
+    var r=rmLoad();
+    var d=new Date(); d.setDate(d.getDate()+1);
+    var ymd=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
+    var hm=('0'+r.h).slice(-2)+('0'+r.m).slice(-2)+'00';
+    var ics=[
+      'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//xiaozhangben//CN','CALSCALE:GREGORIAN',
+      'BEGIN:VEVENT','UID:xiaozhangben-'+ymd+'@local','DTSTAMP:'+ymd+'T'+hm+'Z',
+      'DTSTART;TZID=Asia/Shanghai:'+ymd+'T'+hm,
+      'RRULE:FREQ=DAILY',
+      'SUMMARY:记一笔账',
+      'DESCRIPTION:打开小账本，把今天的账记上。',
+      'END:VEVENT','END:VCALENDAR'
+    ].join('\r\n');
+    var blob=new Blob([ics],{type:'text/calendar'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='小账本-每日提醒.ics';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000);
+    toast('日历文件已导出，打开它就能加进日历');
+  }
+
   function toast(msg){var t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove('show')},1900)}
 
   function monthEntries(){var m=monthOf(S.offset);return S.entries.filter(function(e){return String(e.date||'').slice(0,7)===m})}
@@ -426,7 +509,8 @@
     var y=+m.slice(0,4),mo=+m.slice(5,7);
     $('#monthLabel').textContent=y+'年'+mo+'月';
     document.body.dataset.ledger=S.ledger;
-    document.querySelectorAll('.seg button').forEach(function(b){b.classList.toggle('on',b.dataset.ledger===S.ledger)});
+  
+  document.querySelectorAll('.seg button').forEach(function(b){b.classList.toggle('on',b.dataset.ledger===S.ledger)});
     renderSummary();renderChips();renderList();
   }
 
@@ -1080,6 +1164,21 @@
   paintSnd();
   $('#sndBtn').onclick=function(){Snd.toggle();paintSnd();if(Snd.isOn())Snd.save();};
   $('#setSheet').addEventListener('click',function(e){if(e.target===$('#setSheet'))$('#setSheet').classList.remove('show')});
+  rmPaint();
+  $('#rmBtn').onclick=function(){var r=rmLoad();r.on=!r.on;r.day='';rmSave(r);rmPaint();toast(r.on?'每天到点提醒你记账':'提醒已关')};
+  $('#rmTime').onchange=function(){
+    var v=(this.value||'21:00').split(':');
+    var r=rmLoad();r.h=parseInt(v[0],10)||0;r.m=parseInt(v[1],10)||0;r.day='';rmSave(r);rmPaint();
+  };
+  $('#notifyBtn').onclick=function(){
+    if(typeof Notification==='undefined'){toast('这个浏览器不支持系统通知');return}
+    Notification.requestPermission().then(function(p){rmPaint();toast(p==='granted'?'系统通知已开启':'没拿到通知权限')});
+  };
+  $('#icsBtn').onclick=rmIcs;
+  $('#nudgeGo').onclick=function(){$('#nudge').classList.remove('show');openForm()};
+  $('#nudgeX').onclick=function(){$('#nudge').classList.remove('show')};
+  setInterval(rmCheck,30000);
+  setTimeout(rmCheck,1200);
   $('#expCsv').onclick=function(){expCsv(false)};
   $('#expCsvAll').onclick=function(){expCsv(true)};
   $('#expJson').onclick=expJson;
@@ -1113,6 +1212,11 @@
     var it=e.target.closest('[data-pick]');if(it)applyPick(it.dataset.pick);
   });
 
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden)return;
+    try{Snd.unlock()}catch(e){}
+    rmCheck();
+  });
   window.addEventListener('pointerdown',function(){Snd.unlock()},{once:true});
 
   /* 回前台/解锁后把声音解开：不解的话下一次点保存、到账都是哑的 */
