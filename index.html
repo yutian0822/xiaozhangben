@@ -252,7 +252,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-16 · 39</p>
+    <p class="hint" id="ver">版本 2026-11-16 · 40</p>
   </div>
 </div>
 
@@ -761,7 +761,14 @@
       return source;
     }
     function 日期(s){
-      var m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/.exec(净(s));
+      var raw=净(s);
+      /* 微信导出的 xlsx 把时间存成 Excel 序列号（如 46342.33578703704） */
+      if(/^\d{4,6}(\.\d+)?$/.test(raw)){
+        var ms=Math.round(parseFloat(raw)*86400000)+Date.UTC(1899,11,30);
+        var d=new Date(ms);
+        if(!isNaN(d.getTime()))return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2);
+      }
+      var m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/.exec(raw);
       if(!m)return '';
       return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
     }
@@ -770,7 +777,9 @@
       var f=(rows[k]||[]).map(净);
       if(!f.join('').trim())continue;
       var dir=cDir>=0?(f[cDir]||''):'';
-      if(dir.indexOf('收入')>=0||dir.indexOf('不计')>=0)continue;
+      /* 微信的「中性交易」（信用卡还款/充值/提现）收支列是 /，不算花销 */
+      if(dir.indexOf('收入')>=0||dir.indexOf('不计')>=0||dir.indexOf('中性')>=0)continue;
+      if(dir==='/'||dir==='')continue;
       var rawCell=(f[cAmt]||'').replace(/[¥￥,\s元]/g,'');
       if(!rawCell||!/^-?\d+(\.\d+)?$/.test(rawCell))continue;
       var amt=Math.abs(parseFloat(rawCell));
@@ -780,10 +789,17 @@
       var party=cParty>=0?(f[cParty]||''):'';
       var kind=cType>=0?(f[cType]||''):'';
       var 备注=cNote>=0?(f[cNote]||''):'';
-      var note=(备注||goods||party||kind||'').trim();
+      /* 微信的「商品」列经常是 / ，这时用交易对方更像人话 */
+      function 有用(s){
+        var v=String(s||'').trim();
+        if(!v||v==='/'||v==='-')return false;
+        if(/^[0-9A-Fa-f]{10,}$/.test(v))return false;   /* 微信有时把内部单号塞进「商品」列 */
+        return true;
+      }
+      var note=(有用(goods)?goods:(有用(party)?party:(有用(备注)?备注:(有用(kind)?kind:'')))).trim();
       out.push({
         date:date,amount:Math.round(amt*100)/100,
-        note:note.slice(0,40),kind:kind,
+        note:note.slice(0,40),kind:kind,party:party,
         pay:normPay(cPay>=0?f[cPay]:''),
         ext:cId>=0?(f[cId]||''):'',
         hash:date+'|'+amt+'|'+(note||goods||party).slice(0,16)
@@ -903,7 +919,7 @@
     var idx=去重索引();
     billRows=rows.map(function(r){
       var dup=(r.ext&&idx['x'+r.ext])||idx['h'+r.hash]||'';
-      return {date:r.date,amount:r.amount,note:r.note,kind:r.kind,pay:r.pay,ext:r.ext,hash:r.hash,dup:dup,lg:dup?'dup':S.ledger};
+      return {date:r.date,amount:r.amount,note:r.note,party:r.party||'',kind:r.kind,pay:r.pay,ext:r.ext,hash:r.hash,dup:dup,lg:dup?'dup':S.ledger};
     });
     billLedger=S.ledger;   /* 默认放进你现在看的那本账 */
     画账单预览();
@@ -921,7 +937,7 @@
     $('#billPreview').innerHTML=rows.map(function(r,k){
       var dup=r.lg==='dup';
       var tar=r.lg==='biz'?'biz':'me';
-      var cat=dup?'':定分类((r.note||'')+(r.pay||''),r.kind,tar);
+      var cat=dup?'':定分类((r.note||'')+' '+(r.party||'')+' '+(r.pay||''),r.kind,tar);
       var nm=r.date.slice(5)+' '+String(r.note||r.kind||'—').replace(/\s+/g,' ');
       var chip=dup
         ?'<span class="ct dup">已导入·'+(r.dup==='biz'?'对公':'个人')+'</span>'
@@ -949,10 +965,10 @@
     var nBiz=0,nMe=0,skip=0;
     todo.forEach(function(r){
       if((r.ext&&seen['x'+r.ext])||seen['h'+r.hash]){skip++;return}
-      var lg=r.lg,text=(r.note||'')+(r.pay||'');
+      var lg=r.lg,text=(r.note||'')+' '+(r.party||'')+' '+(r.pay||'');
       S.entries.push({
         id:uid(),ledger:lg,amount:r.amount,date:r.date,
-        category:定分类(text,r.kind,lg),note:r.note,
+        category:定分类(text,r.kind,lg),note:r.note,party:r.party||'',
         project:'',invoice:'无',status:lg==='biz'?'待报':'',pay:r.pay,
         ext:r.ext,hash:r.hash,createdAt:Date.now()
       });
