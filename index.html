@@ -252,7 +252,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-16 · 40</p>
+    <p class="hint" id="ver">版本 2026-11-16 · 41</p>
   </div>
 </div>
 
@@ -792,7 +792,7 @@
       /* 微信的「商品」列经常是 / ，这时用交易对方更像人话 */
       function 有用(s){
         var v=String(s||'').trim();
-        if(!v||v==='/'||v==='-')return false;
+        if(!v||v==='/'||v==='-'||v==='无'||v==='—'||v==='--')return false;
         if(/^[0-9A-Fa-f]{10,}$/.test(v))return false;   /* 微信有时把内部单号塞进「商品」列 */
         return true;
       }
