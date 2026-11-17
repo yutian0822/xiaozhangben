@@ -69,6 +69,16 @@
   .ybar button{width:30px;height:30px;border-radius:9px;color:var(--dim);font-size:16px}
   .day.flash{animation:flashDay 1.4s ease-out}
   @keyframes flashDay{0%{background:rgba(240,180,41,.14)}100%{background:transparent}}
+  .crow{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--line)}
+  .crow .ic{font-size:16px;width:20px;text-align:center}
+  .crow .mid{flex:1;min-width:0}
+  .crow .nm{font-size:14px;display:flex;align-items:center;gap:8px}
+  .crow .nm .t{display:flex;align-items:center;gap:8px}
+  .crow .nm b{font-weight:600}
+  .crow .nm i{font-style:normal;font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:0 5px;align-self:center}
+  .crow .track{display:block;height:5px;border-radius:3px;background:rgba(255,255,255,.09);margin-top:7px;overflow:hidden}
+  .crow .track i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+  .crow .v{font-size:14px;font-weight:600;white-space:nowrap}
   .monlist .mrow.cur .lbl:after{content:"本月";margin-left:8px;font-size:11px;font-weight:400;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:0 5px}
   .month button{width:30px;height:30px;border-radius:10px;font-size:16px;color:var(--dim)}
   .month .today{margin-left:auto;width:auto;white-space:nowrap;font-size:13px;color:var(--dim);background:var(--bg2);padding:5px 10px;border-radius:9px}
@@ -319,7 +329,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-17 · 62</p>
+    <p class="hint" id="ver">版本 2026-11-18 · 64</p>
   </div>
 </div>
 
@@ -349,6 +359,7 @@
   <div class="panel">
     <div class="phead"><button id="monClose">关闭</button><b id="monTitle">按月看</b><button id="monBack" style="visibility:hidden">‹ 返回</button></div>
     <div class="ybar"><button id="yPrev" aria-label="上一年">‹</button><b id="yLabel">—</b><button id="yNext" aria-label="下一年">›</button></div>
+    <div class="bseg" id="monSeg" style="display:none"><button data-mode="day" class="on">按天</button><button data-mode="cat">按分类</button></div>
     <div class="monlist" id="monList"></div>
     <p class="hint" id="monHint"></p>
   </div>
@@ -372,9 +383,9 @@
   var KEY='xiaozhangben.v1';
   var CATS={
     biz:['交通','餐饮','饮品','住宿','办公用品','超市','招待','快递','会务','其他'],
-    me:['吃饭','饮品','超市','交通','日用','娱乐','医疗','宠物','孩子','人情','房租水电','其他']
+    me:['吃饭','饮品','超市','交通','日用','娱乐','医疗','宠物','孩子','人情','房租水电','还款还贷','其他']
   };
-  var ICONS={'交通':'🚕','餐饮':'🍜','饮品':'☕','超市':'🛒','住宿':'🏨','办公用品':'📎','招待':'🍽','快递':'📦','会务':'🎤','其他':'•',
+  var ICONS={'交通':'🚕','餐饮':'🍜','饮品':'☕','超市':'🛒','住宿':'🏨','办公用品':'📎','招待':'🍽','快递':'📦','会务':'🎤','其他':'•','还款还贷':'🏦',
     '吃饭':'🍚','日用':'🧴','娱乐':'🎬','医疗':'💊','宠物':'🐾','孩子':'🎒','人情':'🎁','房租水电':'🏠'};
   var S={ledger:'biz',offset:0,filter:'全部',entries:[],editId:null};
 
@@ -899,6 +910,7 @@
     if(has('电影','游戏','娱乐','KTV'))return ledger==='biz'?'招待':'娱乐';
     if(has('绘本','玩具','书包','文具','幼儿园','儿童','宝宝'))return ledger==='biz'?'其他':'孩子';
     if(has('花束','鲜花','礼物','红包','随礼'))return ledger==='biz'?'招待':'人情';
+    if(has('还款','还贷','房贷','车贷','月供','贷款','分期','信用卡还款','花呗还款','借呗'))return ledger==='biz'?'其他':'还款还贷';
     if(has('快递','顺丰','邮'))return ledger==='biz'?'快递':'其他';
     return '其他';
   }
@@ -1246,7 +1258,7 @@
   document.querySelectorAll('.seg button').forEach(function(b){
     b.addEventListener('click',function(){S.ledger=b.dataset.ledger;S.filter='全部';render()});
   });
-  var monView={year:0,month:0};
+  var monView={year:0,month:0,mode:'day'};
   function 汇总(list){
     var m={biz:0,me:0,bizN:0,meN:0};
     list.forEach(function(e){
@@ -1271,11 +1283,30 @@
         var cls=(key===monthOf(S.offset)?' on':'')+(key===monthOf(0)?' cur':'');
         html+='<div class="mrow'+cls+'" data-k="'+key+'"><span class="lbl">'+i+'月</span><span class="v">'+数一行(sum)+'</span></div>';
       }
-      $('#monTitle').textContent='按月看';
-      $('#monBack').style.visibility='hidden';
-      $('.ybar').style.display='flex';
       $('#yLabel').textContent=y+'年';
-      $('#monHint').textContent='点一个月看每天的合计；再点一天跳过去。';
+    }else if(monView.mode==='cat'){
+      var prefix=y+'-'+pad(mo),rows=[];
+      ['biz','me'].forEach(function(lg){
+        var bucket={};
+        S.entries.forEach(function(e){
+          if(e.ledger!==lg)return;
+          if(String(e.date||'').slice(0,7)!==prefix)return;
+          var k=e.category||'其他';
+          var b=bucket[k]||(bucket[k]={n:0,sum:0});
+          b.n++;b.sum+=+e.amount||0;
+        });
+        var ks=Object.keys(bucket).sort(function(a,b){return bucket[b].sum-bucket[a].sum});
+        var max=ks.length?bucket[ks[0]].sum:0;
+        if(!ks.length)return;
+        ks.forEach(function(k){
+          var b=bucket[k],pct=max?(b.sum/max*100):0;
+          rows.push('<div class="crow"><span class="ic">'+(ICONS[k]||'•')+'</span><span class="mid">'+
+            '<span class="nm"><span class="t">'+esc(k)+'<i>'+(lg==='biz'?'对公':'个人')+' · '+b.n+'笔</i></span></span>'+
+            '<span class="track"><i style="width:'+pct.toFixed(1)+'%"></i></span></span>'+
+            '<span class="v">¥'+money(b.sum)+'</span></div>');
+        });
+      });
+      html=rows.join('')||'<div class="mrow" style="cursor:default"><span class="lbl">这个月还没有记录</span></div>';
     }else{
       var prefix=y+'-'+pad(mo),days={};
       S.entries.forEach(function(e){
@@ -1290,12 +1321,16 @@
         var wd=['周日','周一','周二','周三','周四','周五','周六'][new Date(d+'T00:00:00').getDay()];
         html+='<div class="mrow'+(d===todayStr()?' on':'')+'" data-d="'+d+'"><span class="lbl">'+(+d.slice(8,10))+'日 '+wd+'</span><span class="v">'+数一行(sum)+'</span></div>';
       });
-      $('#monTitle').textContent=y+'年'+mo+'月';
-      $('#monBack').style.visibility='visible';
-      $('.ybar').style.display='none';
-      $('#monHint').textContent='点一天跳到那天。';
+
     }
     list.innerHTML=html;
+    var 在月内=!!mo;
+    $('#monTitle').textContent=在月内?(y+'年'+mo+'月'):'按月看';
+    $('#monBack').style.visibility=在月内?'visible':'hidden';
+    $('.ybar').style.display=在月内?'none':'flex';
+    $('#monSeg').style.display=在月内?'flex':'none';
+    document.querySelectorAll('#monSeg button').forEach(function(b){b.classList.toggle('on',b.dataset.mode===monView.mode)});
+    $('#monHint').textContent=!在月内?'点一个月看每天的合计；再点一天跳过去。':(monView.mode==='cat'?'条越长，表示这个分类花得越多。':'点一天跳到那天。');
   }
   function 打开月面板(){
     var base=monthOf(S.offset)||monthOf(0);
@@ -1318,7 +1353,12 @@
   $('#monthLabel').onclick=打开月面板;
   $('#monthLabel').onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();打开月面板()}};
   $('#monClose').onclick=function(){$('#monSheet').classList.remove('show')};
-  $('#monBack').onclick=function(){monView.month=0;画月面板()};
+  $('#monBack').onclick=function(){monView.month=0;monView.mode='day';画月面板()};
+  $('#monSeg').addEventListener('click',function(e){
+    var b=e.target.closest?e.target.closest('button[data-mode]'):null;
+    if(!b)return;
+    monView.mode=b.dataset.mode;画月面板();
+  });
   $('#yPrev').onclick=function(){monView.year--;画月面板()};
   $('#yNext').onclick=function(){monView.year++;画月面板()};
   $('#monSheet').addEventListener('click',function(e){
@@ -1328,7 +1368,7 @@
     var dk=row.getAttribute('data-d');
     if(dk){跳到日期(dk);return}
     var k=row.getAttribute('data-k');
-    if(k){monView.year=+k.slice(0,4);monView.month=+k.slice(5,7);画月面板()}
+    if(k){monView.year=+k.slice(0,4);monView.month=+k.slice(5,7);monView.mode='day';画月面板()}
   });
   $('#prev').onclick=function(){S.offset--;render()};
   $('#next').onclick=function(){S.offset++;render()};
