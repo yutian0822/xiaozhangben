@@ -197,6 +197,9 @@
 
   .bar{height:6px;border-radius:4px;background:var(--bg3);overflow:hidden;margin:12px 2px 6px}
   .bar i{display:block;height:100%;border-radius:4px;background:var(--accent);transition:width .3s}
+  .bar.day i{background:var(--me)}
+  .bar.loan i{background:#a78bfa}
+  .bar.loan.over i{background:#f472b6}
   .bar.over i{background:var(--bad)}
   .barTxt{font-size:12px;color:var(--dim);display:flex;justify-content:space-between;margin:0 2px}
   .barTxt b{color:var(--fg);font-weight:550}
@@ -320,6 +323,7 @@
     <div class="field"><label>恢复备份</label><button id="impJson" style="flex:1;text-align:right;color:var(--me)">导入 JSON</button></div>
     <div class="field"><label>音效</label><button id="sndBtn" style="flex:1;text-align:right;color:var(--me)">开</button></div>
     <div class="field"><label>每月预算</label><input id="bgLimit" type="number" inputmode="decimal" placeholder="不限" style="flex:1;text-align:right;background:none;border:0;color:var(--fg);font-size:15px;width:50%"></div>
+    <div class="field"><label>每月还款预算</label><input id="bgLoan" type="number" inputmode="decimal" placeholder="不限" style="flex:1;text-align:right;background:none;border:0;color:var(--fg);font-size:15px;width:50%"></div>
     <div class="field"><label>预算提醒</label><span style="flex:1;text-align:right;color:var(--dim);font-size:15px">花到 <input id="bgPct" type="number" inputmode="numeric" min="1" max="100" value="80" style="width:52px;text-align:right;background:none;border:0;color:var(--fg);font-size:15px"> % 时提醒</span></div>
     <div class="field"><label>每日提醒</label><button id="rmBtn" style="flex:1;text-align:right;color:var(--me)">开</button></div>
     <div class="field"><label>提醒时间</label><input id="rmTime" type="time" value="21:00" style="flex:1;text-align:right;background:none;border:0;color:var(--fg);font-size:15px"></div>
@@ -329,7 +333,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-18 · 64</p>
+    <p class="hint" id="ver">版本 2026-11-18 · 66</p>
   </div>
 </div>
 
@@ -507,25 +511,34 @@
   var BGK='xiaozhangben.budget';
   function 读预算(){
     try{ var v=JSON.parse(localStorage.getItem(BGK)||'null');
-      if(v&&typeof v==='object') return {limit:+v.limit||0, pct:+v.pct||80, warned:v.warned||''};
+      if(v&&typeof v==='object') return {limit:+v.limit||0, loan:+v.loan||0, pct:+v.pct||80, warned:v.warned||''};
     }catch(e){}
-    return {limit:0,pct:80,warned:''};
+    return {limit:0,loan:0,pct:80,warned:''};
   }
   function 存预算(v){ try{ localStorage.setItem(BGK,JSON.stringify(v)) }catch(e){} }
-  function 本月个人支出(){
-    var m=monthOf(0);
-    return S.entries.filter(function(e){return e.ledger==='me'&&String(e.date||'').slice(0,7)===m})
-      .reduce(function(s,e){return s+e.amount},0);
+  function 本月个人分项(){
+    var m=monthOf(0),day=0,loan=0;
+    S.entries.forEach(function(e){
+      if(e.ledger!=='me'||String(e.date||'').slice(0,7)!==m)return;
+      if(e.category==='还款还贷')loan+=e.amount; else day+=e.amount;
+    });
+    return {day:day,loan:loan};
   }
   function 查预算(){
-    var b=读预算();
-    if(b.limit<=0)return;
-    var used=本月个人支出(), p=used/b.limit*100, key=monthOf(0)+'|'+b.pct;
-    if(p<b.pct||b.warned===key)return;
-    b.warned=key;存预算(b);
-    if(used>b.limit) toast('这个月预算超了 ¥'+money(used-b.limit));
-    else if(p>=100) toast('这个月预算用完了');
-    else toast('这个月花到 '+Math.round(p)+'%，还剩 ¥'+money(b.limit-used));
+    var b=读预算(); if(b.limit<=0&&b.loan<=0)return;
+    var 项=本月个人分项(), m0=monthOf(0);
+    function 一档(名字,used,limit,slug){
+      if(limit<=0)return;
+      var p=used/limit*100, key=m0+'|'+b.pct+'|'+slug;
+      if(p<b.pct||b.warned===key)return;
+      b.warned=key;
+      if(used>limit) toast(名字+'超了 ¥'+money(used-limit));
+      else if(p>=100) toast(名字+'用完了');
+      else toast(名字+'花到 '+Math.round(p)+'%，还剩 ¥'+money(limit-used));
+    }
+    一档('这个月日常预算',项.day,b.limit,'d');
+    一档('这个月还款预算',项.loan,b.loan,'l');
+    存预算(b);
   }
 
   /* ── 每日提醒 ── */
@@ -616,14 +629,18 @@
     renderSummary();renderChips();renderList();
   }
 
-  function budgetHtml(total){
+  function budgetHtml(){
     var b=读预算();
-    if(b.limit<=0)return '';
-    var p=total/b.limit*100;
-    var over=total>b.limit;
-    return '<div class="bar'+(over?' over':'')+'"><i style="width:'+Math.min(100,p)+'%"></i></div>'+
-      '<div class="barTxt"><span>预算 ¥'+money(b.limit)+'</span>'+
-      '<span>已用 <b>'+Math.round(p)+'%</b> · '+(over?'超 ¥'+money(total-b.limit):'剩 ¥'+money(b.limit-total))+'</span></div>';
+    if(b.limit<=0&&b.loan<=0)return '';
+    var 项=本月个人分项();
+    function 一条(名字,used,limit,cls){
+      if(limit<=0)return '';
+      var p=used/limit*100, over=used>limit;
+      return '<div class="bar '+cls+(over?' over':'')+'"><i style="width:'+Math.min(100,p)+'%"></i></div>'+
+        '<div class="barTxt"><span>'+名字+' ¥'+money(limit)+'</span>'+
+        '<span>已用 <b>'+Math.round(p)+'%</b> · '+(over?'超 ¥'+money(used-limit):'剩 ¥'+money(limit-used))+'</span></div>';
+    }
+    return 一条('日常预算',项.day,b.limit,'day')+一条('还款预算',项.loan,b.loan,'loan');
   }
   function renderSummary(){
     var m=monthOf(S.offset);
@@ -648,10 +665,12 @@
     }else{
       var days=new Set(arr.map(function(e){return e.date})).size||1;
       var daysInMonth=new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
+      var 项0=本月个人分项();
       el.innerHTML='<div class="sub">本月支出</div><div class="big">¥'+money(total)+'<small>'+arr.length+' 笔</small></div>'+
-        '<div class="subs"><div class="sub">日均<b>¥'+money(total/daysInMonth)+'</b></div>'+
-        '<div class="sub">有支出天数<b>'+days+' 天</b></div></div>'+
-        budgetHtml(total)+
+        '<div class="subs"><div class="sub">日均<b>¥'+money((total-项0.loan)/daysInMonth)+'</b></div>'+
+        '<div class="sub">有支出天数<b>'+days+' 天</b></div>'+
+        (项0.loan>0?'<div class="sub">含还款<b>¥'+money(项0.loan)+'</b></div>':'')+'</div>'+
+        budgetHtml()+
         '<div class="sumall"><span>累计支出 <b>¥'+money(allTotal)+'</b> · '+all.length+' 笔</span></div>';
     }
   }
@@ -1495,6 +1514,7 @@
   function paintBudget(){
     var b=读预算();
     var l=$('#bgLimit'); if(l)l.value=b.limit?String(b.limit):'';
+    var lo=$('#bgLoan'); if(lo)lo.value=b.loan?String(b.loan):'';
     var p=$('#bgPct'); if(p)p.value=String(b.pct||80);
   }
   paintBudget();
@@ -1502,6 +1522,11 @@
     var b=读预算();
     var v=parseFloat(this.value);
     b.limit=(isFinite(v)&&v>0)?Math.round(v*100)/100:0;
+    b.warned='';存预算(b);paintBudget();render();
+  };
+  $('#bgLoan').onchange=function(){
+    var b=读预算();var v=parseFloat(this.value);
+    b.loan=(isFinite(v)&&v>0)?Math.round(v*100)/100:0;
     b.warned='';存预算(b);paintBudget();render();
   };
   $('#bgPct').onchange=function(){
