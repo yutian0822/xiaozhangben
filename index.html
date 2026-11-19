@@ -82,7 +82,8 @@
   .crow .v{font-size:14px;font-weight:600;white-space:nowrap}
   .monlist .mrow.cur .lbl:after{content:"本月";margin-left:8px;font-size:11px;font-weight:400;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:0 5px}
   .month button{width:30px;height:30px;border-radius:10px;font-size:16px;color:var(--dim)}
-  .month #helpBtn{margin-left:auto}
+  .month #helpBtn{margin-left:auto;color:var(--accent);background:rgba(240,180,41,.12);
+    border:1px solid rgba(240,180,41,.45);font-weight:600;padding:5px 11px}
   .month .today{margin-left:0;width:auto;white-space:nowrap;font-size:13px;color:var(--dim);background:var(--bg2);padding:5px 10px;border-radius:9px}
 
   .seg{display:flex;background:var(--bg3);border-radius:12px;padding:3px;gap:3px}
@@ -133,6 +134,9 @@
     padding:0 2px 8px;margin-bottom:8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;letter-spacing:.2px}
   .dayhead span:first-child{font-weight:550;color:var(--dim)}
   .day:first-child{margin-top:14px}
+  .pickbar{display:flex;align-items:center;gap:10px;margin:4px 0 2px}
+  .pickbar button{font-size:13px;color:var(--me);padding:4px 2px}
+  .pickbar span{flex:1;text-align:center;font-size:12.5px;color:var(--dim)}
   .item.pick{position:relative}
   .item.pick .chk{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line);flex:none;display:grid;place-items:center}
   .item.pick.on{border-color:var(--accent);background:rgba(240,180,41,.06)}
@@ -284,7 +288,7 @@
       <button id="prev" aria-label="上个月">‹</button>
       <b id="monthLabel" role="button" tabindex="0" aria-label="查看每月合计">—</b>
       <button id="next" aria-label="下个月">›</button>
-      <button class="today" id="helpBtn" aria-label="使用说明">说明</button>
+      <button class="today" id="helpBtn" aria-label="使用说明">使用说明</button>
       <button class="today" id="btnToday">回到本月</button>
     </div>
     <div class="seg">
@@ -357,7 +361,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-20 · 70</p>
+    <p class="hint" id="ver">版本 2026-11-20 · 72</p>
   </div>
 </div>
 
@@ -398,6 +402,9 @@
     <div class="phead"><button id="helpClose">关闭</button><b>使用说明</b><span style="width:44px"></span></div>
     <div class="help">
       <p class="hp">小账本分两本账：<b>对公垫付</b>（先自己垫、回头报销）和<b>个人生活</b>（自己的钱）。上面那排切过去就是另一本。</p>
+
+      <div class="hs">最近更新</div>
+      <p class="hp"><b>v71</b> 挑选框加了全选/清空；<b>v70</b> 这一页说明上线；<b>v69</b> 左滑改状态、多选挪账、滑到底不再回弹；<b>v66</b> 还款预算单独一条。</p>
 
       <div class="hs">记一笔</div>
       <p class="hp">右下角两个键：<b>＋ 记一笔</b> 是填表；<b>🎙 说一句</b> 可以直接说「中午跟客户吃饭 486 微信」，它自己认金额和分类，认完给你看一眼再存。</p>
@@ -452,7 +459,8 @@
   <div class="panel">
     <div class="phead"><button id="pickClose">取消</button><b id="pickTitle">挑一笔</b><span style="width:44px"></span></div>
     <p class="hint" id="pickHint"></p>
-    <div id="pickList" style="max-height:56vh;overflow:auto;padding-top:6px"></div>
+    <div class="pickbar"><button id="pickAll">全选</button><span id="pickSum">已选 0 笔</span><button id="pickNone">清空</button></div>
+    <div id="pickList" style="max-height:52vh;overflow:auto;padding-top:4px"></div>
     <button id="pickGo" disabled style="width:100%;margin-top:12px;padding:14px;border-radius:12px;background:var(--accent);color:#12161d;font-size:15px;font-weight:650;opacity:.45">挪过去</button>
   </div>
 </div>
@@ -819,6 +827,14 @@
     var n=pickSel.length, btn=$('#pickGo');
     btn.textContent=n?('把选中的 '+n+' 笔挪到「'+pickTarget.to+'」'):'选几笔（可多选）';
     btn.disabled=!n; btn.style.opacity=n?1:.45;
+    var all=pickCandidates(pickTarget.from).map(function(e){return e.id});
+    var sum=pickSel.reduce(function(s,id){var e=S.entries.find(function(x){return x.id===id});return s+(e?e.amount:0)},0);
+    var ba=$('#pickAll');
+    if(ba){ ba.textContent=(n>0&&n===all.length)?'取消全选':'全选' }
+    var ss=$('#pickSum');
+    if(ss){ ss.textContent=n?('已选 '+n+' 笔 · ¥'+money(sum)):'已选 0 笔' }
+    var bn=$('#pickNone');
+    if(bn){ bn.style.opacity=n?1:.35 }
     document.querySelectorAll('#pickList .pick').forEach(function(el){
       el.classList.toggle('on',pickSel.indexOf(el.dataset.pick)>=0);
     });
@@ -1732,6 +1748,12 @@
   $('#helpSheet').addEventListener('click',function(e){if(e.target===$('#helpSheet'))$('#helpSheet').classList.remove('show')});
   $('#pickClose').onclick=function(){$('#pickSheet').classList.remove('show')};
   $('#pickGo').onclick=applyPick;
+  $('#pickAll').onclick=function(){
+    var all=pickCandidates(pickTarget.from).map(function(e){return e.id});
+    pickSel=(pickSel.length===all.length)?[]:all.slice();
+    paintPick();
+  };
+  $('#pickNone').onclick=function(){pickSel=[];paintPick()};
   $('#pickSheet').addEventListener('click',function(e){
     if(e.target===$('#pickSheet')){$('#pickSheet').classList.remove('show');return}
     var it=e.target.closest('[data-pick]');
