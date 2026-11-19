@@ -84,7 +84,12 @@
   .month button{width:30px;height:30px;border-radius:10px;font-size:16px;color:var(--dim)}
   .month #helpBtn{margin-left:auto;color:var(--accent);background:rgba(240,180,41,.12);
     border:1px solid rgba(240,180,41,.45);font-weight:600;padding:5px 11px}
-  .month .today{margin-left:0;width:auto;white-space:nowrap;font-size:13px;color:var(--dim);background:var(--bg2);padding:5px 10px;border-radius:9px}
+  .verline{display:flex;justify-content:flex-end;margin:2px 0 -6px}
+  .ver{font-size:11px;color:var(--dim2);padding:2px 4px;line-height:1.2;letter-spacing:.02em}
+  .ver:active{color:var(--accent)}
+  .ver:active{color:var(--accent)}
+  .month .today{margin-left:0;width:auto;white-space:nowrap;font-size:15px;font-weight:600;color:var(--fg);background:var(--bg2);padding:5px 10px;border-radius:9px}
+  .month #helpBtn{margin-left:auto;font-size:13px;font-weight:600;color:var(--accent);background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.45);padding:5px 10px;border-radius:9px}
 
   .seg{display:flex;background:var(--bg3);border-radius:12px;padding:3px;gap:3px}
   .seg button{flex:1;padding:8px 4px;border-radius:9px;font-size:14px;color:var(--dim);font-weight:550}
@@ -146,10 +151,20 @@
   .help .hs{color:var(--fg);font-weight:650;font-size:13px;margin:16px 0 4px;letter-spacing:.02em}
   .help .hp{margin:0 0 6px}
   .help .hp b{color:var(--fg);font-weight:600}
+  .help .himg{width:100%;border-radius:12px;border:1px solid var(--line);margin:8px 0 4px;display:block}
   .hlist{margin:2px 0 4px}
   .hrow{display:flex;flex-direction:column;gap:2px;padding:9px 0;border-bottom:1px solid var(--line)}
   .hrow b{color:var(--fg);font-weight:600;font-size:13.5px}
   .hrow span{font-size:13px;color:var(--dim);line-height:1.6}
+  .hstep{margin:10px 0 14px}
+  .hstep img{width:100%;display:block;border-radius:12px;border:1px solid var(--line)}
+  .hstep figcaption{font-size:12.5px;color:var(--dim);margin-top:6px;line-height:1.5}
+  .vlist{max-height:70vh;overflow:auto;padding:2px 2px 10px}
+  .vrow{display:grid;grid-template-columns:52px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;line-height:1.6;align-items:baseline}
+  .vrow b{color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums}
+  .vrow span{color:var(--dim)}
+  .vrow.now b{color:var(--fg)}
+  .vrow.now span{color:var(--fg)}
   .swipe{position:relative;overflow:hidden;border-radius:12px;margin-bottom:8px}
   .swipe .acts{position:absolute;inset:0;display:flex;justify-content:flex-end;align-items:stretch;gap:1px;z-index:0}
   .swipe .acts button{width:74px;font-size:12px;color:#12161d;background:var(--accent);border-radius:0}
@@ -284,12 +299,13 @@
       </div>
       <button class="iconbtn" id="btnSet" aria-label="设置">⚙</button>
     </div>
+    <div class="verline"><button class="ver" id="verBtn" aria-label="查看更新记录">v79</button></div>
     <div class="month">
       <button id="prev" aria-label="上个月">‹</button>
       <b id="monthLabel" role="button" tabindex="0" aria-label="查看每月合计">—</b>
       <button id="next" aria-label="下个月">›</button>
-      <button class="today" id="helpBtn" aria-label="使用说明">使用说明</button>
       <button class="today" id="btnToday">回到本月</button>
+      <button class="today" id="helpBtn" aria-label="使用说明">使用说明</button>
     </div>
     <div class="seg">
       <button data-ledger="biz" class="on">对公垫付</button>
@@ -361,7 +377,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-20 · 72</p>
+    <p class="hint" id="ver">版本 2026-11-20 · 79</p>
   </div>
 </div>
 
@@ -403,8 +419,11 @@
     <div class="help">
       <p class="hp">小账本分两本账：<b>对公垫付</b>（先自己垫、回头报销）和<b>个人生活</b>（自己的钱）。上面那排切过去就是另一本。</p>
 
-      <div class="hs">最近更新</div>
-      <p class="hp"><b>v71</b> 挑选框加了全选/清空；<b>v70</b> 这一页说明上线；<b>v69</b> 左滑改状态、多选挪账、滑到底不再回弹；<b>v66</b> 还款预算单独一条。</p>
+      <div class="hs">先放到主屏（推荐）</div>
+      <p class="hp">用 <b>Safari</b> 打开 <b>https://yutian0822.github.io/xiaozhangben/</b>（微信里点开的不行），然后照这三步走——下面是 iOS 27 的真机截图：</p>
+      <figure class="hstep"><img src="help-step1.jpg" alt="点地址栏左边的按钮"><figcaption>① 点地址栏左边那个「≡」按钮</figcaption></figure>
+      <figure class="hstep"><img src="help-step2.jpg" alt="在菜单里选共享"><figcaption>② 在弹出的菜单里点「共享」</figcaption></figure>
+      <figure class="hstep"><img src="help-step3.jpg" alt="点添加到主屏幕"><figcaption>③ 面板往下滑，点「添加到主屏幕」完成主屏幕生成小账本工具。以后从主屏图标点开，全屏、没有地址栏，数据也记在这个图标名下。</figcaption></figure>
 
       <div class="hs">记一笔</div>
       <p class="hp">右下角两个键：<b>＋ 记一笔</b> 是填表；<b>🎙 说一句</b> 可以直接说「中午跟客户吃饭 486 微信」，它自己认金额和分类，认完给你看一眼再存。</p>
@@ -452,6 +471,13 @@
       <div class="hs">其他</div>
       <p class="hp">刚加的功能如果没生效，多半是缓存：把页面关掉重开一次。左下角有版本号，报问题时把那个数字告诉我最快。</p>
     </div>
+  </div>
+</div>
+
+<div class="sheet" id="verSheet">
+  <div class="panel">
+    <div class="phead"><button id="verClose">关闭</button><b>更新记录</b><span style="width:44px"></span></div>
+    <div class="vlist" id="vlist"></div>
   </div>
 </div>
 
@@ -627,6 +653,49 @@
     一档('这个月日常预算',项.day,b.limit,'d');
     一档('这个月还款预算',项.loan,b.loan,'l');
     存预算(b);
+  }
+
+  /* ── 更新记录（新的往上加，版本号列对齐） ── */
+  var CHANGES=[
+    ['v79','版本号挪到「回到本月」上方，点开就是这份记录；以后的微调不再单独记版本号。'],
+    ['v78','「放到主屏」第三步改成：点「添加到主屏幕」直接生成，不再点右上角。'],
+    ['v76','使用说明里换成 iOS 27 真机截图，标了红圈和①②③。'],
+    ['v71','挑单页加「全选 / 清空」，可以一次挪一整批。'],
+    ['v70','使用说明补上「设置里有什么」和「数据在哪」。'],
+    ['v69','账单左滑改状态；待报/已提交/已到账可多选批量挪；应用内使用说明上线。'],
+    ['v68','修好滑到底自动回弹、最下面那笔点不到。'],
+    ['v66','还款还贷单独一份预算，进度条用紫色和日常区分。'],
+    ['v64','个人账新增「还款还贷」，说一句也认「还房贷 5200」。'],
+    ['v63','按月看里新增「按分类」，看这个月哪类最费。'],
+    ['v62','一句话记账定稿：家人算个人，垫付算对公。'],
+    ['v58','底部改成两条并排：说一句 / 记一笔。'],
+    ['v54','说一句能认金额、日期、分类、支付方式、项目，认完给预览再存。'],
+    ['v51','按月看改成两层：先看每月，点进去看每天。'],
+    ['v49','备份拆成完整备份 / 恢复备份，并提醒多久没备份。'],
+    ['v47','修 iOS 主屏模式下设置面板「关闭」点不到。'],
+    ['v46','安全加固：编号和分类做白名单，防止异常数据串进页面。'],
+    ['v45','新增每月预算和预算提醒，超支变红。'],
+    ['v44','对公主数字改成「待核销」：所有还没到账的，不只算本月。'],
+    ['v41','导入兼容 zip；微信账单的时间序列号能认出来。'],
+    ['v39','修导入「一笔都认不出」：表头打分识别 + 多种分隔符。'],
+    ['v35','导入账单可以逐笔选对公或个人。'],
+    ['v30','删除确认改成页面内弹窗（iOS 会吞掉系统弹窗）。'],
+    ['v29','到账音换成你录的金币声。'],
+    ['v26','加音效：记一笔、删除、到账。'],
+    ['v21','账单去重：订单号 + 日期金额指纹，同一笔不会重复导入。'],
+    ['v18','缓存改成页面走网络、资源走缓存，更新后不用手动清。'],
+    ['v14','背景加金币和钻石点缀，两本账各用一套配色。'],
+    ['v12','加上桌宠：金币小女仆，从桌宠动画里抽帧做的。'],
+    ['v9','累计垫付、未结金额进汇总卡。'],
+    ['v7','对公三档状态：待报 / 已提交 / 已到账。'],
+    ['v5','可以添加到主屏，像 App 一样全屏、离线可用。'],
+    ['v1','第一版：两本账、记一笔、本月汇总、导出 CSV、数据只存本机。']
+  ];
+  function 画更新(){
+    var el=$('#vlist'); if(!el)return;
+    el.innerHTML=CHANGES.map(function(x,i){
+      return '<div class="vrow'+(i===0?' now':'')+'"><b>'+x[0]+'</b><span>'+x[1]+'</span></div>';
+    }).join('');
   }
 
   /* ── 每日提醒 ── */
@@ -1743,6 +1812,9 @@
   $('#askYes').onclick=function(){var cb=askCb;askClose();if(cb)cb()};
   $('#askNo').onclick=askClose;
   $('#askSheet').addEventListener('click',function(e){if(e.target===$('#askSheet'))askClose()});
+  $('#verBtn').onclick=function(){画更新();$('#verSheet').classList.add('show')};
+  $('#verClose').onclick=function(){$('#verSheet').classList.remove('show')};
+  $('#verSheet').addEventListener('click',function(e){if(e.target===$('#verSheet'))$('#verSheet').classList.remove('show')});
   $('#helpBtn').onclick=function(){$('#helpSheet').classList.add('show')};
   $('#helpClose').onclick=function(){$('#helpSheet').classList.remove('show')};
   $('#helpSheet').addEventListener('click',function(e){if(e.target===$('#helpSheet'))$('#helpSheet').classList.remove('show')});

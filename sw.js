@@ -1,6 +1,6 @@
 /* 小账本 service worker —— 让 App 离线能开，不缓存任何账目数据 */
-const CACHE = 'xiaozhangben-v72';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './pet.webp', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
+const CACHE = 'xiaozhangben-v79';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './pet.webp', './help-step1.jpg', './help-step2.jpg', './help-step3.jpg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
