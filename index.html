@@ -23,12 +23,13 @@
     :root{ --bg:#f6f7f9; --bg2:#fff; --bg3:#eef1f5; --line:#e2e6ec; --fg:#161b22; --dim:#5f6b7a; --dim2:#8b98a8; }
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100%}
+  html{height:100%}
+  body{margin:0;min-height:100%}
   body{
     background:var(--bg);
     color:var(--fg);
     font:16px/1.45 ui-rounded,"SF Pro Rounded","Yuanti SC",-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
-    padding:env(safe-area-inset-top) 0 calc(168px + env(safe-area-inset-bottom));
+    padding:env(safe-area-inset-top) 0 0;
     overscroll-behavior-y:none;
   }
   button,input,select{font:inherit;color:inherit}
@@ -81,7 +82,8 @@
   .crow .v{font-size:14px;font-weight:600;white-space:nowrap}
   .monlist .mrow.cur .lbl:after{content:"本月";margin-left:8px;font-size:11px;font-weight:400;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:0 5px}
   .month button{width:30px;height:30px;border-radius:10px;font-size:16px;color:var(--dim)}
-  .month .today{margin-left:auto;width:auto;white-space:nowrap;font-size:13px;color:var(--dim);background:var(--bg2);padding:5px 10px;border-radius:9px}
+  .month #helpBtn{margin-left:auto}
+  .month .today{margin-left:0;width:auto;white-space:nowrap;font-size:13px;color:var(--dim);background:var(--bg2);padding:5px 10px;border-radius:9px}
 
   .seg{display:flex;background:var(--bg3);border-radius:12px;padding:3px;gap:3px}
   .seg button{flex:1;padding:8px 4px;border-radius:9px;font-size:14px;color:var(--dim);font-weight:550}
@@ -131,6 +133,25 @@
     padding:0 2px 8px;margin-bottom:8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;letter-spacing:.2px}
   .dayhead span:first-child{font-weight:550;color:var(--dim)}
   .day:first-child{margin-top:14px}
+  .item.pick{position:relative}
+  .item.pick .chk{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line);flex:none;display:grid;place-items:center}
+  .item.pick.on{border-color:var(--accent);background:rgba(240,180,41,.06)}
+  .item.pick.on .chk{background:var(--accent);border-color:var(--accent)}
+  .item.pick.on .chk:after{content:"✓";font-size:12px;color:#12161d;font-weight:700}
+  .help{max-height:66vh;overflow:auto;padding:2px 2px 8px;font-size:14px;line-height:1.75;color:var(--dim)}
+  .help .hs{color:var(--fg);font-weight:650;font-size:13px;margin:16px 0 4px;letter-spacing:.02em}
+  .help .hp{margin:0 0 6px}
+  .help .hp b{color:var(--fg);font-weight:600}
+  .hlist{margin:2px 0 4px}
+  .hrow{display:flex;flex-direction:column;gap:2px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .hrow b{color:var(--fg);font-weight:600;font-size:13.5px}
+  .hrow span{font-size:13px;color:var(--dim);line-height:1.6}
+  .swipe{position:relative;overflow:hidden;border-radius:12px;margin-bottom:8px}
+  .swipe .acts{position:absolute;inset:0;display:flex;justify-content:flex-end;align-items:stretch;gap:1px;z-index:0}
+  .swipe .acts button{width:74px;font-size:12px;color:#12161d;background:var(--accent);border-radius:0}
+  .swipe .acts button[data-set="已到账"]{background:var(--ok)}
+  .swipe .acts button.ghost{background:var(--bg3);color:var(--fg)}
+  .swipe .item{position:relative;z-index:1;margin-bottom:0;background:var(--bg2);will-change:transform}
   .item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg2);border:1px solid var(--line);
     border-radius:12px;margin-bottom:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
     transition:transform .12s ease,border-color .18s}
@@ -155,6 +176,7 @@
     display:grid;place-items:center;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:20;
     transition:transform .12s ease,box-shadow .18s}
   .fab:active{transform:scale(.93);box-shadow:0 6px 18px rgba(0,0,0,.45)}
+  .tail{height:calc(168px + env(safe-area-inset-bottom))}
   .scrim{position:fixed;left:0;right:0;bottom:0;height:calc(170px + env(safe-area-inset-bottom));z-index:18;pointer-events:none;
     background:linear-gradient(to top,var(--bg) 42%,rgba(0,0,0,0))}
   .barwrap{position:fixed;left:16px;right:16px;bottom:calc(94px + env(safe-area-inset-bottom));
@@ -262,6 +284,7 @@
       <button id="prev" aria-label="上个月">‹</button>
       <b id="monthLabel" role="button" tabindex="0" aria-label="查看每月合计">—</b>
       <button id="next" aria-label="下个月">›</button>
+      <button class="today" id="helpBtn" aria-label="使用说明">说明</button>
       <button class="today" id="btnToday">回到本月</button>
     </div>
     <div class="seg">
@@ -273,6 +296,7 @@
   <section class="card" id="summary"></section>
   <div class="chips" id="chips"></div>
   <main id="list"></main>
+  <div class="tail" aria-hidden="true"></div>
 </div>
 
 <div class="scrim"></div>
@@ -333,7 +357,7 @@
     <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
     <input type="file" id="billInput" accept=".csv,.xlsx,.zip,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     <p class="hint" id="stat"></p>
-    <p class="hint" id="ver">版本 2026-11-18 · 66</p>
+    <p class="hint" id="ver">版本 2026-11-20 · 70</p>
   </div>
 </div>
 
@@ -369,11 +393,67 @@
   </div>
 </div>
 
+<div class="sheet" id="helpSheet">
+  <div class="panel">
+    <div class="phead"><button id="helpClose">关闭</button><b>使用说明</b><span style="width:44px"></span></div>
+    <div class="help">
+      <p class="hp">小账本分两本账：<b>对公垫付</b>（先自己垫、回头报销）和<b>个人生活</b>（自己的钱）。上面那排切过去就是另一本。</p>
+
+      <div class="hs">记一笔</div>
+      <p class="hp">右下角两个键：<b>＋ 记一笔</b> 是填表；<b>🎙 说一句</b> 可以直接说「中午跟客户吃饭 486 微信」，它自己认金额和分类，认完给你看一眼再存。</p>
+
+      <div class="hs">改状态（只有对公）</div>
+      <p class="hp">对公的每一笔有三种状态：待报 → 已提交 → 已到账。在<b>全部</b>里把账单<b>往左滑</b>，露出「已提交 / 已到账」，点一下就改；改完它会自己挪到对应那一档。已经提交的还能「退待报」。</p>
+      <p class="hp">在<b>已提交 / 已到账</b>页点右下角的 ＋，可以把「待报 / 已提交」里的账一次挑好几笔挪过来，不用重填。</p>
+
+      <div class="hs">看合计</div>
+      <p class="hp">点上面的年月进「按月看」：第一层是每月合计（可换年份），点进某个月，第二层可以切<b>按天</b>或<b>按分类</b>——按天数每天花多少，按分类看这个月哪类最费。点某一天会跳回那天的明细。</p>
+      <p class="hp">对公主数字是<b>待核销</b>（还没到账的全部），底下才是本月和累计。</p>
+
+      <div class="hs">导入账单</div>
+      <p class="hp">设置 → 导入账单，选微信或支付宝导出的文件（CSV、xlsx、zip 都行）。它会认出每一笔，重复的自动跳过，你在预览里逐笔点选放进哪本账，最后一次性导入。</p>
+
+      <div class="hs">预算</div>
+      <p class="hp">设置里可以定<b>每月预算</b>和<b>每月还款预算</b>（两个分开算），还能定花到几成提醒你。个人生活页顶部那两条进度条就是它们：蓝的是日常，紫的是还款，超了会变红。</p>
+
+      <div class="hs">提醒</div>
+      <p class="hp">设置里可以开<b>每日提醒</b>，到点如果今天还没记账，页面底部会弹一条；也能导出日历提醒，或开系统通知（页面开着时才有效）。</p>
+
+      <div class="hs">设置里有什么</div>
+      <p class="hp">右上角那个齿轮就是设置，从上到下依次是：</p>
+      <div class="hlist">
+        <div class="hrow"><b>本月 CSV</b><span>把这个月的账导成表格，Excel、Numbers 都能打开，报销时直接发。</span></div>
+        <div class="hrow"><b>全部 CSV</b><span>导全部记录，不分月份。</span></div>
+        <div class="hrow"><b>导入账单</b><span>选微信或支付宝导出的账单文件，逐笔挑账本，一次性导进来。</span></div>
+        <div class="hrow"><b>完整备份</b><span>导出 JSON，换手机、清浏览器之前导一份。</span></div>
+        <div class="hrow"><b>恢复备份</b><span>把 JSON 里的账并回来，同一条不会重复；下面那行小字会提醒你多久没备份了。</span></div>
+        <div class="hrow"><b>音效</b><span>开关。关掉以后到账不再响；手机侧边静音拨片也会让它全哑。</span></div>
+        <div class="hrow"><b>每月预算</b><span>日常开销的上限，按个人生活算，留空就是不限。</span></div>
+        <div class="hrow"><b>每月还款预算</b><span>还款还贷单独算一份上限，和日常分开，互不挤占。</span></div>
+        <div class="hrow"><b>预算提醒</b><span>花到几成时提醒你，默认八成，超了会说超多少。</span></div>
+        <div class="hrow"><b>每日提醒</b><span>开/关。当天没记账，到点会在页面底部弹一条。</span></div>
+        <div class="hrow"><b>提醒时间</b><span>几点提醒，默认 21:00。</span></div>
+        <div class="hrow"><b>系统通知</b><span>申请用手机系统的通知弹提醒；要页面开着才有效。</span></div>
+        <div class="hrow"><b>日历提醒</b><span>导出一个 .ics，可以加到系统日历里每天提醒。</span></div>
+        <div class="hrow"><b>删除全部记录</b><span>一次清空两本账。删了不能恢复，动手前先导一份备份。</span></div>
+        <div class="hrow"><b>最底下那行</b><span>版本号。出问题时把那个数字告诉我，最快。</span></div>
+      </div>
+
+      <div class="hs">数据在哪</div>
+      <p class="hp">所有账只存在这台手机的浏览器里（Safari 和主屏 App 算两套），不联网、不上传。所以换手机、清理网站数据、或者删掉主屏图标重装，都会读不到旧账——备份就是为这个。</p>
+
+      <div class="hs">其他</div>
+      <p class="hp">刚加的功能如果没生效，多半是缓存：把页面关掉重开一次。左下角有版本号，报问题时把那个数字告诉我最快。</p>
+    </div>
+  </div>
+</div>
+
 <div class="sheet" id="pickSheet">
   <div class="panel">
     <div class="phead"><button id="pickClose">取消</button><b id="pickTitle">挑一笔</b><span style="width:44px"></span></div>
     <p class="hint" id="pickHint"></p>
-    <div id="pickList" style="max-height:60vh;overflow:auto;padding-top:6px"></div>
+    <div id="pickList" style="max-height:56vh;overflow:auto;padding-top:6px"></div>
+    <button id="pickGo" disabled style="width:100%;margin-top:12px;padding:14px;border-radius:12px;background:var(--accent);color:#12161d;font-size:15px;font-weight:650;opacity:.45">挪过去</button>
   </div>
 </div>
 
@@ -709,10 +789,18 @@
         sub.push(e.category);
         if(e.invoice&&e.invoice!=='无')sub.push(e.invoice);
         if(e.pay)sub.push(e.pay);
-        html+='<div class="item" data-id="'+e.id+'"><div class="ico">'+(ICONS[e.category]||'•')+'</div>'+
+        var acts='';
+        if(e.ledger==='biz'){
+          var st0=statusOf(e);
+          acts=(st0==='待报'?'<button data-set="已提交">已提交</button>':'')+
+               (st0!=='已到账'?'<button data-set="已到账">已到账</button>':'')+
+               (st0!=='待报'?'<button data-set="待报" class="ghost">退待报</button>':'');
+        }
+        html+='<div class="swipe'+(acts?'':' nostatus')+'"><div class="acts">'+acts+'</div>'+
+          '<div class="item" data-id="'+e.id+'"><div class="ico">'+(ICONS[e.category]||'•')+'</div>'+
           '<div class="mid"><div class="n">'+esc(e.note||e.category)+pill+'</div>'+
           '<div class="m">'+esc(sub.join(' · '))+'</div></div>'+
-          '<div class="amt">-¥'+money(e.amount)+'</div></div>';
+          '<div class="amt">-¥'+money(e.amount)+'</div></div></div>';
       });
       html+='</div>';
     });
@@ -726,33 +814,48 @@
     return S.entries.filter(function(e){return e.ledger==='biz'&&statusOf(e)===from})
       .sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:0});
   }
+  var pickSel=[];
+  function paintPick(){
+    var n=pickSel.length, btn=$('#pickGo');
+    btn.textContent=n?('把选中的 '+n+' 笔挪到「'+pickTarget.to+'」'):'选几笔（可多选）';
+    btn.disabled=!n; btn.style.opacity=n?1:.45;
+    document.querySelectorAll('#pickList .pick').forEach(function(el){
+      el.classList.toggle('on',pickSel.indexOf(el.dataset.pick)>=0);
+    });
+  }
   function openPick(to,from){
-    pickTarget={to:to,from:from};
+    pickTarget={to:to,from:from}; pickSel=[];
     var arr=pickCandidates(from);
     $('#pickTitle').textContent='挑到「'+to+'」';
     $('#pickHint').textContent=arr.length
-      ? '下面是现在还在「'+from+'」里的 '+arr.length+' 笔，点一笔就挪进「'+to+'」，不用重填。'
+      ? '「'+from+'」里还有 '+arr.length+' 笔。点一下选中，可以连着点好几笔，最后一次性挪到「'+to+'」。'
       : '「'+from+'」里现在是空的。先去那一档记一笔，再回来挪。';
     var box=$('#pickList');
     if(!arr.length){box.innerHTML='<div class="empty">没有可挪的账</div>'}
     else{
       box.innerHTML=arr.map(function(e){
-        return '<div class="item" data-pick="'+e.id+'"><div class="ico">'+(ICONS[e.category]||'•')+'</div>'+
+        return '<div class="item pick" data-pick="'+e.id+'"><span class="chk"></span>'+
+          '<div class="ico">'+(ICONS[e.category]||'•')+'</div>'+
           '<div class="mid"><div class="n">'+esc(e.note||e.category)+'</div>'+
           '<div class="m">'+esc(e.date)+(e.project?' · '+esc(e.project):'')+(e.invoice&&e.invoice!=='无'?' · '+esc(e.invoice):'')+'</div></div>'+
           '<div class="amt">¥'+money(e.amount)+'</div></div>';
       }).join('');
     }
+    paintPick();
     $('#pickSheet').classList.add('show');
   }
-  function applyPick(id){
-    var e=S.entries.find(function(x){return x.id===id});
-    if(!e||e.ledger!=='biz')return;
-    e.status=pickTarget.to;
+  function applyPick(){
+    if(!pickSel.length)return;
+    var n=0,sum=0;
+    pickSel.forEach(function(id){
+      var e=S.entries.find(function(x){return x.id===id});
+      if(!e||e.ledger!=='biz')return;
+      e.status=pickTarget.to; n++; sum+=e.amount;
+    });
     save();
     $('#pickSheet').classList.remove('show');
     render();
-    toast('挪到「'+pickTarget.to+'」了');
+    toast('挪了 '+n+' 笔到「'+pickTarget.to+'」，共 ¥'+money(sum));
     if(pickTarget.to==='已到账')Snd.paid();else Snd.save();
   }
 
@@ -1496,6 +1599,53 @@
   $('#chips').addEventListener('click',function(e){
     var b=e.target.closest('.chip');if(!b)return;S.filter=b.dataset.f;render();
   });
+  /* 左滑改状态 */
+  (function(){
+    var cur=null,startX=0,startY=0,dx=0,lock=null;
+    function closeOne(el){ if(!el)return; el.classList.remove('open');
+      var it=el.querySelector('.item'); if(it)it.style.transform=''; }
+    function closeAll(){ document.querySelectorAll('.swipe.open').forEach(closeOne); }
+    document.addEventListener('touchstart',function(e){
+      var sw=e.target.closest('.swipe'); if(!sw){closeAll();return}
+      if(sw.classList.contains('nostatus'))return;
+      cur=sw;startX=e.touches[0].clientX;startY=e.touches[0].clientY;dx=0;lock=null;
+    },{passive:true});
+    document.addEventListener('touchmove',function(e){
+      if(!cur)return;
+      var x=e.touches[0].clientX,y=e.touches[0].clientY;
+      var ddx=x-startX, ddy=y-startY;
+      if(lock===null){
+        if(Math.abs(ddx)<6&&Math.abs(ddy)<6)return;
+        lock=Math.abs(ddx)>Math.abs(ddy)?'x':'y';
+      }
+      if(lock!=='x'){return}
+      dx=Math.max(-160,Math.min(0,ddx+(cur.classList.contains('open')?-160:0)));
+      cur.querySelector('.item').style.transform='translateX('+dx+'px)';
+    },{passive:true});
+    document.addEventListener('touchend',function(){
+      if(!cur)return;
+      var it=cur.querySelector('.item');
+      if(dx<-60){cur.classList.add('open');it.style.transform='translateX(-160px)'}
+      else{cur.classList.remove('open');it.style.transform=''}
+      cur=null;
+    });
+    document.addEventListener('click',function(e){
+      var btn=e.target.closest('.acts button'); if(!btn)return;
+      var sw=btn.closest('.swipe'), it=sw.querySelector('.item');
+      setStatus(it.dataset.id,btn.dataset.set);
+      closeOne(sw);
+    },true);
+  })();
+  function setStatus(id,to){
+    var e=S.entries.find(function(x){return x.id===id});
+    if(!e)return;
+    var old=statusOf(e);
+    if(old===to){toast('已经是「'+to+'」了');return}
+    e.status=to;save();render();
+    toast('「'+(e.note||e.category)+'」'+old+' → '+to);
+    if(to==='已到账')Snd.paid();else Snd.save();
+  }
+
   $('#list').addEventListener('click',function(e){
     var it=e.target.closest('.item');if(!it)return;
     var en=S.entries.find(function(x){return x.id===it.dataset.id});
@@ -1577,10 +1727,19 @@
   $('#askYes').onclick=function(){var cb=askCb;askClose();if(cb)cb()};
   $('#askNo').onclick=askClose;
   $('#askSheet').addEventListener('click',function(e){if(e.target===$('#askSheet'))askClose()});
+  $('#helpBtn').onclick=function(){$('#helpSheet').classList.add('show')};
+  $('#helpClose').onclick=function(){$('#helpSheet').classList.remove('show')};
+  $('#helpSheet').addEventListener('click',function(e){if(e.target===$('#helpSheet'))$('#helpSheet').classList.remove('show')});
   $('#pickClose').onclick=function(){$('#pickSheet').classList.remove('show')};
+  $('#pickGo').onclick=applyPick;
   $('#pickSheet').addEventListener('click',function(e){
     if(e.target===$('#pickSheet')){$('#pickSheet').classList.remove('show');return}
-    var it=e.target.closest('[data-pick]');if(it)applyPick(it.dataset.pick);
+    var it=e.target.closest('[data-pick]');
+    if(it){
+      var i=pickSel.indexOf(it.dataset.pick);
+      if(i>=0)pickSel.splice(i,1); else pickSel.push(it.dataset.pick);
+      paintPick();
+    }
   });
 
   document.addEventListener('visibilitychange',function(){
